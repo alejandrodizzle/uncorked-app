@@ -17,6 +17,13 @@ workflows:
           include: true
           source: true
 
+    # ── App Store Connect integration (workflow level — required for auth: integration) ──
+    integrations:
+      app_store_connect:
+        api_key: $APP_STORE_CONNECT_KEY_ID
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+        key: $APP_STORE_CONNECT_PRIVATE_KEY
+
     # ── Environment ────────────────────────────────────────────────────────────
     environment:
       # Xcode + runtimes
@@ -37,12 +44,6 @@ workflows:
         # Marketing version is set in the Build step via agvtool
         MARKETING_VERSION: "1.0.0"
 
-      # ── Code signing via App Store Connect API (recommended) ─────────────────
-      # 1. Add an App Store Connect API key in Codemagic Teams > Integrations
-      # 2. Name it (e.g. "uncorked-asc") and reference that name below
-      integrations:
-        app_store_connect: uncorked-asc      # <-- name you gave the key in Codemagic
-
       ios_signing:
         distribution_type: app_store         # options: app_store | ad_hoc | development
         bundle_identifier: com.uncorked.app
@@ -59,11 +60,6 @@ workflows:
       #   OPENAI_API_KEY                 OpenAI API key for the backend (mark as secret)
       #   STRIPE_SECRET_KEY              Stripe secret key (mark as secret)
       #   STRIPE_WEBHOOK_SECRET          Stripe webhook signing secret (mark as secret)
-      #
-      # Optional — only needed if you use manual code signing instead of the
-      # App Store Connect integration above:
-      #   CERTIFICATE_PRIVATE_KEY        RSA private key matching the distribution cert
-      #   PROVISIONING_PROFILE           Base64-encoded .mobileprovision file
 
     # ── Build scripts ───────────────────────────────────────────────────────────
     scripts:
@@ -172,7 +168,7 @@ workflows:
           failure: true
 
       app_store_connect:
-        # Uses the same API key named in environment.integrations above
+        # Uses the API key defined in integrations.app_store_connect above
         auth: integration
 
         # Automatically submit to TestFlight after a successful build
@@ -195,6 +191,12 @@ workflows:
     max_build_duration: 60
     instance_type: mac_mini_m2
 
+    integrations:
+      app_store_connect:
+        api_key: $APP_STORE_CONNECT_KEY_ID
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+        key: $APP_STORE_CONNECT_PRIVATE_KEY
+
     environment:
       xcode: 15.4
       cocoapods: default
@@ -204,8 +206,6 @@ workflows:
         XCODE_SCHEME: App
         IOS_DEPLOYMENT_TARGET: "15.0"
         MARKETING_VERSION: "1.0.0"
-      integrations:
-        app_store_connect: uncorked-asc
       ios_signing:
         distribution_type: ad_hoc
         bundle_identifier: com.uncorked.app
