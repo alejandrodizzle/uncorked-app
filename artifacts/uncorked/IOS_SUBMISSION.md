@@ -5,7 +5,7 @@
 | ✓ | Item |
 |---|------|
 | ✓ | Capacitor 7 installed (`@capacitor/core`, `@capacitor/ios`, `@capacitor/cli`) |
-| ✓ | `capacitor.config.ts` — App ID `com.uncorked.app`, live server URL configured |
+| ✓ | `capacitor.config.ts` — App ID `com.aarenas.uncorked`, live server URL configured |
 | ✓ | `assets/icon.png` — 1024×1024 branded app icon (burgundy + wine glass) |
 | ✓ | `assets/splash.png` — 2732×2732 branded splash screen |
 | ✓ | Camera + photo library permission strings ready |
@@ -135,7 +135,7 @@ npx cap open ios
 3. Go to **Signing & Capabilities** tab
 4. Check **Automatically manage signing**
 5. Set **Team** to your Apple Developer account
-6. Bundle Identifier should already show `com.uncorked.app`
+6. Bundle Identifier should already show `com.aarenas.uncorked`
 
 ---
 
@@ -169,7 +169,7 @@ Go to [appstoreconnect.apple.com](https://appstoreconnect.apple.com) and create 
 | Platform | iOS |
 | App Name | Uncorked |
 | Subtitle | Know every wine rating instantly |
-| Bundle ID | com.uncorked.app |
+| Bundle ID | com.aarenas.uncorked |
 | Category | Food & Drink |
 | Age Rating | 4+ (set Alcohol/Tobacco/Drug References to Infrequent/Mild) |
 | Price | Free |
@@ -225,7 +225,7 @@ auto-provisions.
 
 **CocoaPods errors**: `cd ios/App && pod deintegrate && pod install`
 
-**"App ID is not available"**: Someone else registered `com.uncorked.app` — change
+**"App ID is not available"**: Someone else registered `com.aarenas.uncorked` — change
 it to something unique like `com.yourname.uncorked` in both
 `capacitor.config.ts` and Xcode's Signing & Capabilities.
 
