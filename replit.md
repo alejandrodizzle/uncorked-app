@@ -35,7 +35,7 @@ A mobile-first React + Express wine app. Key features:
 **Trial logic**: Server tracks `created_at` in users table; 7 days from first use
 
 **Capacitor setup** (in `artifacts/uncorked/`):
-- `capacitor.config.ts` — appId: `com.uncorked.app`, webDir: `dist/public`
+- `capacitor.config.ts` — appId: `com.aarenas.uncorked`, webDir: `dist/public`
 - `assets/icon.png` — 1024×1024 app icon source
 - `assets/splash.png` — 2732×2732 splash source
 - `public/apple-touch-icon.png` — 180×180 home screen icon
