@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
-  appId: "com.uncorked.app",
+  appId: "com.aarenas.uncorked",
   appName: "Uncorked",
   webDir: "dist/public",
 
