@@ -8,9 +8,9 @@ workflows:
     environment:
       ios_signing:
         distribution_type: app_store
-        bundle_identifier: com.uncorked.app
+        bundle_identifier: com.aarenas.uncorked
       vars:
-        BUNDLE_ID: "com.uncorked.app"
+        BUNDLE_ID: "com.aarenas.uncorked"
         XCODE_WORKSPACE: "ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
     scripts:
