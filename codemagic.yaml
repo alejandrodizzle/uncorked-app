@@ -1,0 +1,152 @@
+workflows:
+  ios-app-store:
+    name: Uncorked — iOS App Store Build
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+
+    environment:
+      vars:
+        BUNDLE_ID: com.uncorked.app
+        XCODE_WORKSPACE: ios/App/App.xcworkspace
+        XCODE_SCHEME: App
+      node: 18.20.4
+      xcode: latest
+      cocoapods: default
+
+    scripts:
+      - name: Install pnpm
+        script: npm install -g pnpm
+
+      - name: Install dependencies
+        script: |
+          cd artifacts/uncorked
+          pnpm install
+
+      - name: Build web app
+        script: |
+          cd artifacts/uncorked
+          pnpm build
+
+      - name: Add iOS platform
+        script: |
+          cd artifacts/uncorked
+          if [ ! -d "ios" ]; then
+            npx cap add ios
+          fi
+
+      - name: Generate app icons and splash screens
+        script: |
+          cd artifacts/uncorked
+          npx @capacitor/assets generate --ios
+
+      - name: Inject iOS permissions into Info.plist
+        script: |
+          PLIST="artifacts/uncorked/ios/App/App/Info.plist"
+          if ! grep -q "NSCameraUsageDescription" "$PLIST"; then
+            /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Uncorked needs camera access to scan wine labels and menus.'" "$PLIST"
+            /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string 'Uncorked needs photo access to scan wine lists from your camera roll.'" "$PLIST"
+            /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryAddUsageDescription string 'Uncorked would like to save wine list scans to your photo library.'" "$PLIST"
+          fi
+
+      - name: Install CocoaPods
+        script: |
+          cd artifacts/uncorked/ios/App
+          pod install
+
+      - name: Sync Capacitor
+        script: |
+          cd artifacts/uncorked
+          npx cap sync ios
+
+      - name: Set Xcode project version
+        script: |
+          cd artifacts/uncorked
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "1.0.0")
+          agvtool new-marketing-version ${LATEST_TAG#v}
+          agvtool new-version -all $(($(git rev-list --count HEAD)))
+
+      - name: Build and archive for App Store
+        script: |
+          cd artifacts/uncorked/ios/App
+          xcodebuild \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -archivePath "$CM_BUILD_DIR/App.xcarchive" \
+            archive \
+            CODE_SIGN_STYLE=AUTOMATIC \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            | xcpretty
+
+      - name: Export IPA
+        script: |
+          xcodebuild \
+            -exportArchive \
+            -archivePath "$CM_BUILD_DIR/App.xcarchive" \
+            -exportOptionsPlist artifacts/uncorked/ios-config/ExportOptions.plist \
+            -exportPath "$CM_BUILD_DIR/ipa" \
+            | xcpretty
+
+    artifacts:
+      - $CM_BUILD_DIR/ipa/*.ipa
+      - $CM_BUILD_DIR/App.xcarchive
+
+    publishing:
+      app_store_connect:
+        api_key_id: $APP_STORE_CONNECT_KEY_ID
+        api_issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+        api_private_key: $APP_STORE_CONNECT_PRIVATE_KEY
+        submit_to_testflight: true
+
+  ios-dev:
+    name: Uncorked — iOS Development Build
+    max_build_duration: 45
+    instance_type: mac_mini_m2
+
+    environment:
+      vars:
+        BUNDLE_ID: com.uncorked.app
+      node: 18.20.4
+      xcode: latest
+      cocoapods: default
+
+    scripts:
+      - name: Install pnpm
+        script: npm install -g pnpm
+
+      - name: Install and build
+        script: |
+          cd artifacts/uncorked
+          pnpm install
+          pnpm build
+
+      - name: Add iOS platform
+        script: |
+          cd artifacts/uncorked
+          if [ ! -d "ios" ]; then
+            npx cap add ios
+          fi
+
+      - name: Generate assets
+        script: |
+          cd artifacts/uncorked
+          npx @capacitor/assets generate --ios
+
+      - name: Install CocoaPods and sync
+        script: |
+          cd artifacts/uncorked/ios/App
+          pod install
+          cd ../..
+          npx cap sync ios
+
+      - name: Build for simulator
+        script: |
+          cd artifacts/uncorked/ios/App
+          xcodebuild \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            build \
+            | xcpretty

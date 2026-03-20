@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ─────────────────────────────────────────────────────
+  Uncorked — iOS Info.plist Permission Additions
+  ─────────────────────────────────────────────────────
+  After running `npx cap add ios` on your Mac, open:
+    ios/App/App/Info.plist
+  and add the keys below inside the top-level <dict> block.
+  ─────────────────────────────────────────────────────
+-->
+<additions>
+
+  <!-- Camera access (required for wine list scanning) -->
+  <key>NSCameraUsageDescription</key>
+  <string>Uncorked needs camera access to scan wine labels and menus.</string>
+
+  <!-- Photo Library read (import from camera roll) -->
+  <key>NSPhotoLibraryUsageDescription</key>
+  <string>Uncorked needs photo access to scan wine lists from your camera roll.</string>
+
+  <!-- Photo Library add (save scanned results — optional) -->
+  <key>NSPhotoLibraryAddUsageDescription</key>
+  <string>Uncorked would like to save wine list scans to your photo library.</string>
+
+  <!-- Required for all apps that use Apple's WKWebView -->
+  <key>NSAppTransportSecurity</key>
+  <dict>
+    <key>NSAllowsArbitraryLoads</key>
+    <false/>
+    <key>NSExceptionDomains</key>
+    <dict>
+      <key>wine-scan-ai.replit.app</key>
+      <dict>
+        <key>NSExceptionAllowsInsecureHTTPLoads</key>
+        <false/>
+        <key>NSIncludesSubdomains</key>
+        <true/>
+      </dict>
+    </dict>
+  </dict>
+
+</additions>

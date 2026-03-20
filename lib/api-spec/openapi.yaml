@@ -1,0 +1,109 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: scan
+    description: Wine list scanning
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /scan:
+    post:
+      operationId: scanWineList
+      tags: [scan]
+      summary: Scan a wine list image
+      description: Upload an image of a wine list and get back extracted wine data
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: string
+                  format: binary
+              required:
+                - image
+      responses:
+        "200":
+          description: Extracted wine list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScanResult"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    Wine:
+      type: object
+      properties:
+        name:
+          type: string
+        vintage:
+          type: integer
+          nullable: true
+        region:
+          type: string
+          nullable: true
+        grape:
+          type: string
+          nullable: true
+        menuPrice:
+          type: number
+          nullable: true
+      required:
+        - name
+    ScanResult:
+      type: object
+      properties:
+        wines:
+          type: array
+          items:
+            $ref: "#/components/schemas/Wine"
+      required:
+        - wines
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error

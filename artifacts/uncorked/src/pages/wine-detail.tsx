@@ -1,0 +1,579 @@
+import { useEffect, useState } from "react";
+import type { SavedWine, Wine } from "./home";
+import type { SearchResult } from "../types/search";
+import { apiUrl } from "../lib/api";
+import BuyOnlineDrawer from "../components/BuyOnlineDrawer";
+
+type WineDetailAI = {
+  consensusScore: number | null;
+  tastingNotes: string | null;
+  flavorTags: string[];
+  foodPairings: string[];
+  retailPriceMin: number | null;
+  retailPriceMax: number | null;
+  valueLabel: "Great Value" | "Fair Price" | "Overpriced" | null;
+};
+
+type TriedEntry = { rating: number; notes: string; triedAt: number };
+
+type Props = {
+  wine: SearchResult;
+  savedWines: SavedWine[];
+  onSaveToggle: (wine: Wine) => void;
+  onBack: () => void;
+};
+
+export default function WineDetailScreen({ wine, savedWines, onSaveToggle, onBack }: Props) {
+  const [aiDetail, setAiDetail] = useState<WineDetailAI | null>(null);
+  const [vivinoRating, setVivinoRating] = useState<{ rating: number | null; ratingsCount: number | null } | null>(
+    wine.vivinoRating != null ? { rating: wine.vivinoRating, ratingsCount: wine.vivinoRatingsCount } : null
+  );
+  const [loadingAI, setLoadingAI] = useState(true);
+  const [loadingVivino, setLoadingVivino] = useState(wine.vivinoRating == null);
+  const [showTriedModal, setShowTriedModal] = useState(false);
+  const [showBuyOnline, setShowBuyOnline] = useState(false);
+  const [triedEntry, setTriedEntry] = useState<TriedEntry | null>(() => {
+    try {
+      const all: Record<string, TriedEntry> = JSON.parse(localStorage.getItem("uncorked_tried") ?? "{}");
+      return all[`${wine.name}||${wine.vintage}`] ?? null;
+    } catch { return null; }
+  });
+
+  const isSaved = savedWines.some((w) => w.name === wine.name && w.vintage === wine.vintage);
+  const wineAsWine: Wine = { name: wine.name, vintage: wine.vintage, region: wine.region, grape: wine.grape, menuPrice: null, tastingNotes: null };
+
+  useEffect(() => {
+    // Fetch AI detail
+    fetch(apiUrl("api/ai/wine-detail"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: wine.name, vintage: wine.vintage, region: wine.region, grape: wine.grape }),
+    })
+      .then((r) => r.json())
+      .then((d: WineDetailAI) => { setAiDetail(d); setLoadingAI(false); })
+      .catch(() => setLoadingAI(false));
+
+    // Fetch Vivino rating if not already known
+    if (wine.vivinoRating == null) {
+      fetch(apiUrl("api/ratings/vivino"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: wine.name, vintage: wine.vintage }),
+      })
+        .then((r) => r.json())
+        .then((d) => { setVivinoRating({ rating: d.rating, ratingsCount: d.ratingsCount }); setLoadingVivino(false); })
+        .catch(() => setLoadingVivino(false));
+    }
+  }, []);
+
+  const handleSaveTried = (rating: number, notes: string) => {
+    const entry = { rating, notes, triedAt: Date.now() };
+    setTriedEntry(entry);
+    try {
+      const all: Record<string, TriedEntry> = JSON.parse(localStorage.getItem("uncorked_tried") ?? "{}");
+      all[`${wine.name}||${wine.vintage}`] = entry;
+      localStorage.setItem("uncorked_tried", JSON.stringify(all));
+    } catch { /* ignore */ }
+    setShowTriedModal(false);
+  };
+
+  return (
+    <div style={{ minHeight: "100svh", backgroundColor: "#faf7f2", maxWidth: "430px", margin: "0 auto" }}>
+
+      {/* Hero header */}
+      <div style={{
+        background: "linear-gradient(160deg, #7b1c34 0%, #5a1225 100%)",
+        padding: "3rem 1.5rem 2rem",
+        position: "relative",
+      }}>
+        <button
+          onClick={onBack}
+          style={{
+            position: "absolute", top: "1rem", left: "1rem",
+            background: "rgba(250,247,242,0.15)", border: "none", cursor: "pointer",
+            borderRadius: "10px", padding: "8px 12px",
+            display: "flex", alignItems: "center", gap: "6px",
+            color: "#faf7f2",
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+          <span style={{ fontSize: "0.75rem", fontFamily: "'Inter', sans-serif", fontWeight: 600 }}>Back</span>
+        </button>
+
+        <div style={{ textAlign: "center", paddingTop: "1.5rem" }}>
+          <div style={{ fontSize: "2.5rem", marginBottom: "0.75rem" }}>🍷</div>
+          <h1 style={{
+            fontFamily: "'Cormorant Garamond', Georgia, serif",
+            fontSize: "clamp(1.75rem, 7vw, 2.5rem)",
+            fontWeight: 600, color: "#faf7f2",
+            letterSpacing: "0.02em", lineHeight: 1.15,
+            margin: "0 0 0.25rem",
+          }}>
+            {wine.name}
+          </h1>
+          {wine.vintage && (
+            <span style={{
+              fontFamily: "'Cormorant Garamond', Georgia, serif",
+              fontSize: "1.25rem", color: "rgba(250,247,242,0.65)", fontWeight: 400,
+            }}>
+              {wine.vintage}
+            </span>
+          )}
+          <div style={{ width: "40px", height: "1px", backgroundColor: "#c9a84c", margin: "0.875rem auto" }} />
+          <div className="flex items-center justify-center gap-3 flex-wrap">
+            {wine.region && (
+              <span style={{
+                fontSize: "0.75rem", color: "rgba(250,247,242,0.7)",
+                fontFamily: "'Inter', sans-serif",
+                display: "flex", alignItems: "center", gap: "4px",
+              }}>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" />
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                </svg>
+                {wine.region}
+              </span>
+            )}
+            {wine.grape && (
+              <span style={{
+                fontSize: "0.75rem", color: "rgba(250,247,242,0.7)",
+                fontFamily: "'Inter', sans-serif",
+                display: "flex", alignItems: "center", gap: "4px",
+              }}>
+                🍇 {wine.grape}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Scores cluster */}
+      <div className="px-5 py-5">
+        <SectionLabel>Ratings</SectionLabel>
+        <div className="flex items-center gap-4 flex-wrap">
+
+          {/* Vivino */}
+          <div style={{
+            flex: 1, minWidth: "120px", padding: "1rem",
+            backgroundColor: "#fff", borderRadius: "14px",
+            border: "1px solid rgba(123,28,52,0.08)",
+            boxShadow: "0 2px 10px rgba(123,28,52,0.05)",
+            textAlign: "center",
+          }}>
+            <div className="flex items-center justify-center gap-1 mb-1">
+              <div style={{ backgroundColor: "#AC1539", borderRadius: "3px", padding: "1px 5px" }}>
+                <span style={{ fontSize: "0.55rem", fontWeight: 700, color: "#fff", fontFamily: "'Inter', sans-serif", letterSpacing: "0.04em" }}>
+                  VIVINO
+                </span>
+              </div>
+            </div>
+            {loadingVivino ? (
+              <Shimmer width="60%" height={28} radius={6} />
+            ) : vivinoRating?.rating != null ? (
+              <>
+                <div style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: "2rem", fontWeight: 700, color: "#7b1c34", lineHeight: 1 }}>
+                  {vivinoRating.rating.toFixed(1)}
+                </div>
+                <div style={{ fontSize: "0.65rem", color: "rgba(123,28,52,0.4)", fontFamily: "'Inter', sans-serif", marginTop: "2px" }}>
+                  /5 community
+                </div>
+              </>
+            ) : (
+              <div style={{ fontSize: "0.75rem", color: "rgba(123,28,52,0.35)", fontStyle: "italic", fontFamily: "'Inter', sans-serif" }}>
+                Not rated
+              </div>
+            )}
+          </div>
+
+          {/* AI Est. */}
+          <div style={{
+            flex: 1, minWidth: "120px", padding: "1rem",
+            backgroundColor: "#fff", borderRadius: "14px",
+            border: "1px solid rgba(201,168,76,0.25)",
+            boxShadow: "0 2px 10px rgba(123,28,52,0.05)",
+            textAlign: "center",
+          }}>
+            <div className="flex items-center justify-center gap-1 mb-1">
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="#c9a84c">
+                <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z" />
+              </svg>
+              <span style={{ fontSize: "0.55rem", fontWeight: 700, color: "#c9a84c", fontFamily: "'Inter', sans-serif", letterSpacing: "0.04em" }}>
+                AI EST.
+              </span>
+            </div>
+            {loadingAI ? (
+              <Shimmer width="60%" height={28} radius={6} />
+            ) : aiDetail?.consensusScore != null ? (
+              <>
+                <div style={{
+                  fontFamily: "'Cormorant Garamond', Georgia, serif",
+                  fontSize: "2rem", fontWeight: 700,
+                  color: aiDetail.consensusScore >= 90 ? "#c9a84c" : "#7b1c34",
+                  lineHeight: 1,
+                }}>
+                  {aiDetail.consensusScore}
+                </div>
+                <div style={{ fontSize: "0.65rem", color: "rgba(123,28,52,0.4)", fontFamily: "'Inter', sans-serif", marginTop: "2px" }}>
+                  /100 critic est.
+                </div>
+              </>
+            ) : (
+              <div style={{ fontSize: "0.75rem", color: "rgba(123,28,52,0.35)", fontStyle: "italic", fontFamily: "'Inter', sans-serif" }}>
+                Estimating...
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Value + retail price */}
+        {!loadingAI && (aiDetail?.valueLabel || aiDetail?.retailPriceMin) && (
+          <div className="flex items-center gap-3 mt-3 flex-wrap">
+            {aiDetail?.valueLabel && <ValueBadge label={aiDetail.valueLabel} />}
+            {aiDetail?.retailPriceMin != null && (
+              <span style={{
+                fontSize: "0.78rem", color: "rgba(123,28,52,0.55)",
+                fontFamily: "'Inter', sans-serif",
+              }}>
+                Typical retail: <strong style={{ color: "#7b1c34" }}>
+                  ${aiDetail.retailPriceMin}{aiDetail.retailPriceMax ? `–$${aiDetail.retailPriceMax}` : ""}
+                </strong>
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      <Divider />
+
+      {/* Tasting notes */}
+      <div className="px-5 py-4">
+        <SectionLabel>Tasting Notes</SectionLabel>
+        {loadingAI ? (
+          <div className="flex flex-col gap-2">
+            <Shimmer width="100%" height={14} /><Shimmer width="90%" height={14} delay="0.15s" /><Shimmer width="75%" height={14} delay="0.3s" />
+          </div>
+        ) : aiDetail?.tastingNotes ? (
+          <p style={{
+            fontFamily: "'Cormorant Garamond', Georgia, serif",
+            fontSize: "1.1rem", fontStyle: "italic",
+            color: "rgba(60,15,25,0.78)", lineHeight: 1.65, margin: 0,
+          }}>
+            {aiDetail.tastingNotes}
+          </p>
+        ) : null}
+      </div>
+
+      {/* Flavor tags */}
+      {(!loadingAI && aiDetail?.flavorTags && aiDetail.flavorTags.length > 0) && (
+        <>
+          <Divider />
+          <div className="px-5 py-4">
+            <SectionLabel>Flavor Profile</SectionLabel>
+            <div className="flex flex-wrap gap-2">
+              {aiDetail.flavorTags.map((tag) => (
+                <span
+                  key={tag}
+                  style={{
+                    padding: "5px 12px", borderRadius: "20px",
+                    backgroundColor: "rgba(123,28,52,0.07)",
+                    border: "1px solid rgba(123,28,52,0.12)",
+                    fontSize: "0.75rem", fontWeight: 500,
+                    color: "#7b1c34", fontFamily: "'Inter', sans-serif",
+                    letterSpacing: "0.01em",
+                  }}
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Food pairings */}
+      {(!loadingAI && aiDetail?.foodPairings && aiDetail.foodPairings.length > 0) && (
+        <>
+          <Divider />
+          <div className="px-5 py-4">
+            <SectionLabel>Food Pairings</SectionLabel>
+            <div className="flex flex-wrap gap-2">
+              {aiDetail.foodPairings.map((food) => (
+                <span
+                  key={food}
+                  style={{
+                    padding: "5px 12px", borderRadius: "20px",
+                    backgroundColor: "rgba(201,168,76,0.1)",
+                    border: "1px solid rgba(201,168,76,0.25)",
+                    fontSize: "0.75rem", fontWeight: 500,
+                    color: "#7b1c34", fontFamily: "'Inter', sans-serif",
+                    display: "flex", alignItems: "center", gap: "5px",
+                  }}
+                >
+                  🍽️ {food}
+                </span>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Critic links */}
+      <Divider />
+      <div className="px-5 py-4">
+        <SectionLabel>Critic Reviews</SectionLabel>
+        {(() => {
+          const q = encodeURIComponent(wine.vintage ? `${wine.name} ${wine.vintage}` : wine.name);
+          return (
+            <div className="flex gap-2 flex-wrap">
+              {[
+                { abbr: "G", label: "Google", url: `https://www.google.com/search?q=${q}+wine+rating` },
+                { abbr: "WS", label: "Wine Spectator", url: `https://www.winespectator.com/search?t=${q}` },
+                { abbr: "WE", label: "Wine Enthusiast", url: `https://www.winemag.com/?s=${q}` },
+                { abbr: "RP", label: "Robert Parker", url: `https://www.robertparker.com/search?query=${q}` },
+              ].map(({ abbr, label, url }) => (
+                <a key={abbr} href={url} target="_blank" rel="noopener noreferrer"
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: "6px",
+                    padding: "6px 12px", borderRadius: "8px",
+                    border: "1px solid rgba(123,28,52,0.18)",
+                    backgroundColor: "rgba(123,28,52,0.04)",
+                    textDecoration: "none",
+                  }}
+                >
+                  <span style={{
+                    width: "18px", height: "18px", borderRadius: "4px",
+                    backgroundColor: "#7b1c34", color: "#faf7f2",
+                    fontSize: "0.55rem", fontWeight: 700,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>{abbr}</span>
+                  <span style={{ fontSize: "0.72rem", color: "#7b1c34", fontFamily: "'Inter', sans-serif", fontWeight: 500, whiteSpace: "nowrap" }}>
+                    {label}
+                  </span>
+                </a>
+              ))}
+            </div>
+          );
+        })()}
+      </div>
+
+      {/* Action buttons */}
+      <div className="px-5 py-5 flex flex-col gap-3" style={{ paddingBottom: "2.5rem" }}>
+        <button
+          onClick={() => setShowBuyOnline(true)}
+          style={{
+            width: "100%", padding: "1rem",
+            borderRadius: "14px", cursor: "pointer",
+            fontFamily: "'Cormorant Garamond', Georgia, serif",
+            fontSize: "1.15rem", fontWeight: 600, letterSpacing: "0.03em",
+            backgroundColor: "transparent",
+            color: "#c9a84c",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+            border: "1.5px solid #c9a84c",
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" /><line x1="3" y1="6" x2="21" y2="6" />
+            <path d="M16 10a4 4 0 01-8 0" />
+          </svg>
+          Buy Online
+        </button>
+
+        <button
+          onClick={() => onSaveToggle(wineAsWine)}
+          style={{
+            width: "100%", padding: "1rem",
+            borderRadius: "14px",
+            border: isSaved ? "1px solid rgba(201,168,76,0.4)" : "none",
+            cursor: "pointer",
+            fontFamily: "'Cormorant Garamond', Georgia, serif",
+            fontSize: "1.15rem", fontWeight: 600, letterSpacing: "0.03em",
+            backgroundColor: isSaved ? "rgba(201,168,76,0.15)" : "#7b1c34",
+            color: isSaved ? "#c9a84c" : "#faf7f2",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+            transition: "all 0.2s",
+            boxShadow: isSaved ? "none" : "0 4px 16px rgba(123,28,52,0.28)",
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24"
+            fill={isSaved ? "currentColor" : "none"} stroke="currentColor"
+            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+          </svg>
+          {isSaved ? "Saved to Cellar" : "Save to Cellar"}
+        </button>
+
+        <button
+          onClick={() => setShowTriedModal(true)}
+          style={{
+            width: "100%", padding: "1rem",
+            borderRadius: "14px", cursor: "pointer",
+            fontFamily: "'Cormorant Garamond', Georgia, serif",
+            fontSize: "1.15rem", fontWeight: 600, letterSpacing: "0.03em",
+            backgroundColor: "transparent",
+            color: "#7b1c34",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+            border: "1.5px solid rgba(123,28,52,0.25)",
+          }}
+        >
+          {triedEntry ? (
+            <>
+              {"★".repeat(triedEntry.rating)} I've tried this
+            </>
+          ) : (
+            "☆ I've tried this"
+          )}
+        </button>
+      </div>
+
+      {showTriedModal && (
+        <TriedModal
+          current={triedEntry}
+          onSave={handleSaveTried}
+          onClose={() => setShowTriedModal(false)}
+        />
+      )}
+
+      {showBuyOnline && (
+        <BuyOnlineDrawer
+          name={wine.name}
+          vintage={wine.vintage ?? null}
+          onClose={() => setShowBuyOnline(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Tried It Modal ───────────────────────────────────────────────────────────
+
+function TriedModal({
+  current, onSave, onClose,
+}: { current: TriedEntry | null; onSave: (rating: number, notes: string) => void; onClose: () => void }) {
+  const [rating, setRating] = useState(current?.rating ?? 0);
+  const [notes, setNotes] = useState(current?.notes ?? "");
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 200,
+      backgroundColor: "rgba(60,15,25,0.6)",
+      display: "flex", alignItems: "flex-end", justifyContent: "center",
+    }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{
+        width: "100%", maxWidth: "430px",
+        backgroundColor: "#faf7f2", borderRadius: "24px 24px 0 0",
+        padding: "1.5rem 1.5rem 2.5rem",
+        boxShadow: "0 -8px 40px rgba(60,15,25,0.2)",
+      }}>
+        <div style={{ width: "36px", height: "4px", borderRadius: "2px", backgroundColor: "rgba(123,28,52,0.2)", margin: "0 auto 1.5rem" }} />
+
+        <h2 style={{
+          fontFamily: "'Cormorant Garamond', Georgia, serif",
+          fontSize: "1.5rem", fontWeight: 600, color: "#7b1c34",
+          marginBottom: "1.25rem", textAlign: "center",
+        }}>
+          Your Rating
+        </h2>
+
+        <div className="flex justify-center gap-3 mb-4">
+          {[1, 2, 3, 4, 5].map((n) => (
+            <button
+              key={n}
+              onClick={() => setRating(n)}
+              style={{
+                background: "none", border: "none", cursor: "pointer",
+                fontSize: "2rem", lineHeight: 1,
+                color: n <= rating ? "#c9a84c" : "rgba(123,28,52,0.18)",
+                transition: "color 0.1s, transform 0.1s",
+                transform: n <= rating ? "scale(1.1)" : "scale(1)",
+              }}
+            >
+              ★
+            </button>
+          ))}
+        </div>
+
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Add a personal note... (optional)"
+          rows={3}
+          style={{
+            width: "100%", padding: "0.75rem 1rem",
+            borderRadius: "10px", border: "1px solid rgba(123,28,52,0.18)",
+            backgroundColor: "#fff", fontFamily: "'Inter', sans-serif",
+            fontSize: "0.85rem", color: "#3c0f19",
+            resize: "none", outline: "none", boxSizing: "border-box",
+            marginBottom: "1rem",
+          }}
+        />
+
+        <button
+          onClick={() => { if (rating > 0) onSave(rating, notes); }}
+          disabled={rating === 0}
+          style={{
+            width: "100%", padding: "1rem", borderRadius: "12px",
+            backgroundColor: rating > 0 ? "#7b1c34" : "rgba(123,28,52,0.2)",
+            color: "#faf7f2", border: "none", cursor: rating > 0 ? "pointer" : "default",
+            fontFamily: "'Cormorant Garamond', Georgia, serif",
+            fontSize: "1.15rem", fontWeight: 600, letterSpacing: "0.03em",
+            transition: "background-color 0.15s",
+          }}
+        >
+          Save Rating
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p style={{
+      fontSize: "0.6rem", fontWeight: 700,
+      fontFamily: "'Inter', sans-serif",
+      color: "rgba(123,28,52,0.4)", letterSpacing: "0.1em",
+      textTransform: "uppercase", marginBottom: "0.75rem",
+    }}>
+      {children}
+    </p>
+  );
+}
+
+function Divider() {
+  return <div style={{ height: "1px", backgroundColor: "rgba(123,28,52,0.07)", margin: "0 1.25rem" }} />;
+}
+
+function ValueBadge({ label }: { label: "Great Value" | "Fair Price" | "Overpriced" }) {
+  const s = {
+    "Great Value": { bg: "rgba(34,139,34,0.08)", border: "rgba(34,139,34,0.25)", text: "#1a7a1a", dot: "#228B22" },
+    "Fair Price": { bg: "rgba(123,28,52,0.06)", border: "rgba(123,28,52,0.15)", text: "rgba(123,28,52,0.55)", dot: "rgba(123,28,52,0.4)" },
+    "Overpriced": { bg: "rgba(185,28,28,0.07)", border: "rgba(185,28,28,0.2)", text: "#b91c1c", dot: "#b91c1c" },
+  }[label];
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "6px", padding: "4px 10px", borderRadius: "8px", backgroundColor: s.bg, border: `1px solid ${s.border}` }}>
+      <span style={{ width: "7px", height: "7px", borderRadius: "50%", backgroundColor: s.dot, display: "inline-block" }} />
+      <span style={{ fontSize: "0.72rem", fontWeight: 600, color: s.text, fontFamily: "'Inter', sans-serif" }}>{label}</span>
+    </div>
+  );
+}
+
+function Shimmer({ width, height, delay = "0s", radius = 4 }: { width: number | string; height: number; delay?: string; radius?: number }) {
+  return (
+    <>
+      <div style={{
+        width, height, borderRadius: radius,
+        background: "linear-gradient(90deg, rgba(123,28,52,0.08) 25%, rgba(201,168,76,0.12) 50%, rgba(123,28,52,0.08) 75%)",
+        backgroundSize: "200% 100%",
+        animation: "shimmer 1.5s ease-in-out infinite", animationDelay: delay,
+        margin: "4px auto 0",
+      }} />
+      <style>{`@keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }`}</style>
+    </>
+  );
+}
