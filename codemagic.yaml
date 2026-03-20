@@ -1,295 +1,39 @@
 workflows:
-
-  # ─────────────────────────────────────────────────────────────────────────────
-  # PRIMARY WORKFLOW — App Store Distribution + TestFlight
-  # ─────────────────────────────────────────────────────────────────────────────
   ios-app-store:
-    name: Uncorked — iOS App Store
+    name: Uncorked iOS App Store
     max_build_duration: 90
     instance_type: mac_mini_m2
-
-    # ── Triggering ─────────────────────────────────────────────────────────────
-    triggering:
-      events:
-        - push
-      branch_patterns:
-        - pattern: main
-          include: true
-          source: true
-
-    # ── App Store Connect integration (workflow level — required for auth: integration) ──
     integrations:
-      app_store_connect:
-        api_key: $APP_STORE_CONNECT_KEY_ID
-        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
-        key: $APP_STORE_CONNECT_PRIVATE_KEY
-
-    # ── Environment ────────────────────────────────────────────────────────────
+      app_store_connect: Codemagic
     environment:
-      # Xcode + runtimes
-      xcode: 15.4
-      cocoapods: default
-      node: 20.11.0
-
-      # Non-secret build variables
-      vars:
-        BUNDLE_ID: com.uncorked.app
-        XCODE_PROJECT: ios/App/App.xcodeproj
-        XCODE_WORKSPACE: ios/App/App.xcworkspace
-        XCODE_SCHEME: App
-        XCODE_CONFIGURATION: Release
-        IOS_DEPLOYMENT_TARGET: "15.0"
-        APP_NAME: Uncorked
-        # Build number is auto-set to $BUILD_NUMBER (Codemagic counter)
-        # Marketing version is set in the Build step via agvtool
-        MARKETING_VERSION: "1.0.0"
-
       ios_signing:
-        distribution_type: app_store         # options: app_store | ad_hoc | development
+        distribution_type: app_store
         bundle_identifier: com.uncorked.app
-
-      # ── Secret environment variables ──────────────────────────────────────────
-      # Set these in Codemagic > Team/App > Environment variables:
-      #
-      #   Variable name                  Description
-      #   ─────────────────────────────  ──────────────────────────────────────────
-      #   APPLE_TEAM_ID                  10-char Apple Developer Team ID (e.g. A1B2C3D4E5)
-      #   APP_STORE_CONNECT_KEY_ID       API key ID from App Store Connect
-      #   APP_STORE_CONNECT_ISSUER_ID    Issuer ID from App Store Connect
-      #   APP_STORE_CONNECT_PRIVATE_KEY  Contents of the .p8 file (mark as secret)
-      #   OPENAI_API_KEY                 OpenAI API key for the backend (mark as secret)
-      #   STRIPE_SECRET_KEY              Stripe secret key (mark as secret)
-      #   STRIPE_WEBHOOK_SECRET          Stripe webhook signing secret (mark as secret)
-
-    # ── Build scripts ───────────────────────────────────────────────────────────
+      vars:
+        BUNDLE_ID: "com.uncorked.app"
+        XCODE_WORKSPACE: "ios/App/App.xcworkspace"
+        XCODE_SCHEME: "App"
     scripts:
-      - name: Install pnpm
-        script: npm install -g pnpm@9
-
-      - name: Install Node dependencies
+      - name: Install dependencies
         script: |
-          cd artifacts/uncorked
-          pnpm install --frozen-lockfile
-
-      - name: Build React frontend
+          npm install
+      - name: Build web app
         script: |
-          cd artifacts/uncorked
-          pnpm build
-        # Vite output lands in artifacts/uncorked/dist/
-
-      - name: Add iOS platform (first run only)
+          npm run build
+      - name: Capacitor sync
         script: |
-          cd artifacts/uncorked
-          if [ ! -d "ios" ]; then
-            npx cap add ios
-          fi
-
-      - name: Generate app icons and splash screens
-        script: |
-          cd artifacts/uncorked
-          npx @capacitor/assets generate --ios
-
-      - name: Sync Capacitor to iOS project
-        script: |
-          cd artifacts/uncorked
           npx cap sync ios
-
-      - name: Inject iOS permission strings into Info.plist
+      - name: Install pods
         script: |
-          PLIST="artifacts/uncorked/ios/App/App/Info.plist"
-          add_key() {
-            if ! /usr/libexec/PlistBuddy -c "Print :$1" "$PLIST" &>/dev/null; then
-              /usr/libexec/PlistBuddy -c "Add :$1 string '$2'" "$PLIST"
-            fi
-          }
-          add_key NSCameraUsageDescription       "Uncorked needs camera access to photograph wine lists and labels."
-          add_key NSPhotoLibraryUsageDescription "Uncorked needs photo access to scan wine lists from your camera roll."
-          add_key NSPhotoLibraryAddUsageDescription "Uncorked would like to save scanned wine lists to your photo library."
-
-      - name: Set iOS deployment target to 15.0
+          cd ios/App && pod install
+      - name: Build iOS
         script: |
-          cd artifacts/uncorked/ios/App
-          # Apply to every target in the project
-          sed -i '' \
-            "s/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]*/IPHONEOS_DEPLOYMENT_TARGET = ${IOS_DEPLOYMENT_TARGET}/g" \
-            App.xcodeproj/project.pbxproj
-
-      - name: Set marketing version and auto-increment build number
-        script: |
-          cd artifacts/uncorked/ios/App
-          # Marketing version (e.g. 1.0.0) — update $MARKETING_VERSION in env vars to bump
-          agvtool new-marketing-version "$MARKETING_VERSION"
-          # Build number = Codemagic's monotonically-increasing counter
-          agvtool new-version -all "$BUILD_NUMBER"
-
-      - name: Install CocoaPods
-        script: |
-          cd artifacts/uncorked/ios/App
-          pod install --repo-update
-
-      - name: Build and sign iOS app for App Store
-        script: |
-          cd artifacts/uncorked/ios/App
-          xcodebuild \
-            -workspace App.xcworkspace \
-            -scheme "$XCODE_SCHEME" \
-            -configuration Release \
-            -archivePath "$CM_BUILD_DIR/App.xcarchive" \
-            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
-            IPHONEOS_DEPLOYMENT_TARGET="$IOS_DEPLOYMENT_TARGET" \
-            CODE_SIGN_STYLE=AUTOMATIC \
-            archive \
-            | xcpretty --color --report junit --output "$CM_BUILD_DIR/xcode_results.xml"
-
-      - name: Export IPA
-        script: |
-          xcodebuild \
-            -exportArchive \
-            -archivePath "$CM_BUILD_DIR/App.xcarchive" \
-            -exportOptionsPlist artifacts/uncorked/ios-config/ExportOptions.plist \
-            -exportPath "$CM_BUILD_DIR/ipa" \
-            | xcpretty
-
-    # ── Artifacts to download after build ────────────────────────────────────
+          xcode-project build-ipa \
+            --workspace "$XCODE_WORKSPACE" \
+            --scheme "$XCODE_SCHEME"
     artifacts:
-      - $CM_BUILD_DIR/ipa/*.ipa
-      - $CM_BUILD_DIR/App.xcarchive
-      - $CM_BUILD_DIR/xcode_results.xml
-      - artifacts/uncorked/ios/App/App.xcodeproj/project.pbxproj
-
-    # ── Publishing ────────────────────────────────────────────────────────────
+      - build/ios/ipa/*.ipa
     publishing:
-      email:
-        recipients:
-          - $CM_SUBMITTER_EMAIL          # set this env var to your email address
-        notify:
-          success: true
-          failure: true
-
       app_store_connect:
-        # Uses the API key defined in integrations.app_store_connect above
         auth: integration
-
-        # Automatically submit to TestFlight after a successful build
         submit_to_testflight: true
-
-        # Optionally auto-release to all TestFlight internal testers
-        # (comment out if you want manual review first)
-        # beta_groups:
-        #   - Internal Testers
-
-        # Set to true when you are ready to submit for App Store Review
-        submit_to_app_store: false
-
-
-  # ─────────────────────────────────────────────────────────────────────────────
-  # SECONDARY WORKFLOW — Ad Hoc / Local QA Device Testing
-  # ─────────────────────────────────────────────────────────────────────────────
-  ios-ad-hoc:
-    name: Uncorked — iOS Ad Hoc (QA)
-    max_build_duration: 60
-    instance_type: mac_mini_m2
-
-    integrations:
-      app_store_connect:
-        api_key: $APP_STORE_CONNECT_KEY_ID
-        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
-        key: $APP_STORE_CONNECT_PRIVATE_KEY
-
-    environment:
-      xcode: 15.4
-      cocoapods: default
-      node: 20.11.0
-      vars:
-        BUNDLE_ID: com.uncorked.app
-        XCODE_SCHEME: App
-        IOS_DEPLOYMENT_TARGET: "15.0"
-        MARKETING_VERSION: "1.0.0"
-      ios_signing:
-        distribution_type: ad_hoc
-        bundle_identifier: com.uncorked.app
-
-    scripts:
-      - name: Install pnpm
-        script: npm install -g pnpm@9
-
-      - name: Install Node dependencies
-        script: |
-          cd artifacts/uncorked
-          pnpm install --frozen-lockfile
-
-      - name: Build React frontend
-        script: |
-          cd artifacts/uncorked
-          pnpm build
-
-      - name: Add iOS platform
-        script: |
-          cd artifacts/uncorked
-          if [ ! -d "ios" ]; then
-            npx cap add ios
-          fi
-
-      - name: Sync Capacitor
-        script: |
-          cd artifacts/uncorked
-          npx cap sync ios
-
-      - name: Set build number
-        script: |
-          cd artifacts/uncorked/ios/App
-          agvtool new-marketing-version "$MARKETING_VERSION"
-          agvtool new-version -all "$BUILD_NUMBER"
-
-      - name: Install CocoaPods
-        script: |
-          cd artifacts/uncorked/ios/App
-          pod install
-
-      - name: Build and sign Ad Hoc IPA
-        script: |
-          cd artifacts/uncorked/ios/App
-          xcodebuild \
-            -workspace App.xcworkspace \
-            -scheme "$XCODE_SCHEME" \
-            -configuration Release \
-            -archivePath "$CM_BUILD_DIR/App.xcarchive" \
-            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
-            IPHONEOS_DEPLOYMENT_TARGET="$IOS_DEPLOYMENT_TARGET" \
-            CODE_SIGN_STYLE=AUTOMATIC \
-            archive \
-            | xcpretty
-
-      - name: Export Ad Hoc IPA
-        script: |
-          cat > /tmp/ExportOptionsAdHoc.plist << 'EOF'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key><string>ad-hoc</string>
-            <key>teamID</key><string>$(APPLE_TEAM_ID)</string>
-            <key>compileBitcode</key><false/>
-            <key>uploadSymbols</key><true/>
-          </dict>
-          </plist>
-          EOF
-          xcodebuild \
-            -exportArchive \
-            -archivePath "$CM_BUILD_DIR/App.xcarchive" \
-            -exportOptionsPlist /tmp/ExportOptionsAdHoc.plist \
-            -exportPath "$CM_BUILD_DIR/ipa" \
-            | xcpretty
-
-    artifacts:
-      - $CM_BUILD_DIR/ipa/*.ipa
-
-    publishing:
-      email:
-        recipients:
-          - $CM_SUBMITTER_EMAIL
-        notify:
-          success: true
-          failure: true
