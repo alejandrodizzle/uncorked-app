@@ -69,7 +69,7 @@ If you haven't done this yet:
 2. Click **+**, choose **App IDs**, then **App**.
 3. Set:
    - Description: `Uncorked`
-   - Bundle ID: `com.uncorked.app` (Explicit)
+   - Bundle ID: `com.aarenas.uncorked` (Explicit)
 4. Under Capabilities, enable **In-App Purchase** (for Stripe web payments, not
    required, but enable if you add native IAP later).
 5. Click **Continue** → **Register**.
@@ -84,7 +84,7 @@ If you haven't done this yet:
    - Platform: **iOS**
    - Name: **Uncorked**
    - Primary Language: English (U.S.)
-   - Bundle ID: `com.uncorked.app`
+   - Bundle ID: `com.aarenas.uncorked`
    - SKU: `uncorked-001` (any unique string)
 4. Click **Create**.
 
@@ -197,7 +197,7 @@ When you're ready to go live:
 ## Troubleshooting
 
 **"No profiles for bundle ID" signing error**
-Make sure the App ID `com.uncorked.app` is registered in your Apple Developer
+Make sure the App ID `com.aarenas.uncorked` is registered in your Apple Developer
 account (Step 4) and the API key has **App Manager** access (Step 2).
 
 **"Provisioning profile doesn't include entitlements"**
