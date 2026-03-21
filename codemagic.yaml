@@ -11,40 +11,28 @@ workflows:
         bundle_identifier: com.aarenas.uncorked
       vars:
         BUNDLE_ID: "com.aarenas.uncorked"
+        XCODE_WORKSPACE: "ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
     scripts:
-      - name: Install pnpm
-        script: |
-          npm install -g pnpm@9
-
       - name: Install dependencies
         script: |
-          pnpm install
-
+          npm install --legacy-peer-deps
       - name: Build web app
         script: |
-          cd artifacts/uncorked
-          pnpm build
-
+          npx vite build
       - name: Capacitor sync
         script: |
-          cd artifacts/uncorked
           npx cap sync ios
-
       - name: Install pods
         script: |
-          cd artifacts/uncorked/ios/App
-          pod install
-
+          cd ios/App && pod install
       - name: Build iOS
         script: |
           xcode-project build-ipa \
-            --workspace "artifacts/uncorked/ios/App/App.xcworkspace" \
+            --workspace "$XCODE_WORKSPACE" \
             --scheme "$XCODE_SCHEME"
-
     artifacts:
       - build/ios/ipa/*.ipa
-
     publishing:
       app_store_connect:
         auth: integration
