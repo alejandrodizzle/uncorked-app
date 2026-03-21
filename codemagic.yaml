@@ -11,7 +11,7 @@ workflows:
         bundle_identifier: com.aarenas.uncorked
       vars:
         BUNDLE_ID: "com.aarenas.uncorked"
-        XCODE_WORKSPACE: "ios/App/App.xcworkspace"
+        XCODE_WORKSPACE: "artifacts/uncorked/ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
     scripts:
       - name: Install dependencies
@@ -32,8 +32,9 @@ workflows:
       - name: Build iOS
         script: |
           xcode-project build-ipa \
-            --workspace "artifacts/uncorked/$XCODE_WORKSPACE" \
-            --scheme "$XCODE_SCHEME"
+            --workspace "$XCODE_WORKSPACE" \
+            --scheme "$XCODE_SCHEME" \
+            --export-options-plist artifacts/uncorked/export_options.plist
     artifacts:
       - build/ios/ipa/*.ipa
     publishing:
