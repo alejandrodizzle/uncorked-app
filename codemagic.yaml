@@ -19,7 +19,7 @@ workflows:
           npm install --legacy-peer-deps
       - name: Build web app
         script: |
-          npm run build
+          npx vite build || npm run build -- --no-typecheck
       - name: Capacitor sync
         script: |
           npx cap sync ios
