@@ -1,13 +1,17 @@
 import { useState } from "react";
 import { apiUrl } from "../lib/api";
 
+// TODO: Before App Store submission, replace Stripe web payments with Apple In-App Purchases (StoreKit)
+// as required by Apple App Store guidelines. Stripe is used here for the web version only.
+
 interface PaywallProps {
   userId: string;
   trialDaysLeft: number;
   onSubscribed: () => void;
+  onDismiss?: () => void;
 }
 
-export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed }: PaywallProps) {
+export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onDismiss }: PaywallProps) {
   const [selectedPlan, setSelectedPlan] = useState<"monthly" | "yearly">("yearly");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -390,8 +394,23 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed }: P
           color: "rgba(123,28,52,0.3)", textAlign: "center",
           marginTop: "1rem", lineHeight: 1.5,
         }}>
-          Secure payment by Stripe · Cancel anytime in your account settings
+          Secure payment powered by Stripe · Cancel anytime
         </p>
+
+        {onDismiss && (
+          <button
+            onClick={onDismiss}
+            style={{
+              marginTop: "0.75rem", background: "none", border: "none",
+              fontFamily: "'Inter', sans-serif", fontSize: "0.8rem",
+              color: "rgba(123,28,52,0.4)", cursor: "pointer",
+              letterSpacing: "0.01em", padding: "4px 8px",
+              textDecoration: "underline", textDecorationStyle: "dotted",
+            }}
+          >
+            Maybe Later
+          </button>
+        )}
       </div>
     </div>
   );

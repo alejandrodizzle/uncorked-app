@@ -56,12 +56,14 @@ export default function Home() {
   const [subStatus, setSubStatus] = useState<"loading" | "trial" | "active" | "expired">("loading");
   const [trialDaysLeft, setTrialDaysLeft] = useState(7);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [showPaywallModal, setShowPaywallModal] = useState(false);
 
   useEffect(() => {
-    // Handle return from Stripe checkout
+    // Handle return from Stripe checkout (?payment=success or ?subscribed=true)
     const params = new URLSearchParams(window.location.search);
-    if (params.get("payment") === "success") {
+    if (params.get("payment") === "success" || params.get("subscribed") === "true") {
       setPaymentSuccess(true);
+      setSubStatus("active");
       window.history.replaceState({}, "", window.location.pathname);
     }
     if (params.get("payment") === "cancelled") {
@@ -113,9 +115,21 @@ export default function Home() {
     });
   };
 
+  const handleScanAttempt = () => {
+    if (subStatus === "expired") {
+      setShowPaywallModal(true);
+      return;
+    }
+    fileInputRef.current?.click();
+  };
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (subStatus === "expired") {
+      setShowPaywallModal(true);
+      return;
+    }
     setError(null);
     setScanning(true);
     setActiveTab("home");
@@ -146,17 +160,6 @@ export default function Home() {
 
   if (showSplash) return <SplashScreen onDone={() => setShowSplash(false)} />;
 
-  // Show paywall if trial expired (allow pass-through while status loading)
-  if (subStatus === "expired") {
-    return (
-      <PaywallScreen
-        userId={userId}
-        trialDaysLeft={0}
-        onSubscribed={() => setSubStatus("active")}
-      />
-    );
-  }
-
   // Wine Detail Screen — full-screen overlay, no bottom nav
   if (detailWine) {
     return (
@@ -169,21 +172,86 @@ export default function Home() {
     );
   }
 
+  const hasBanner = subStatus === "trial" || subStatus === "expired";
+  const bannerHeight = hasBanner ? 44 : 0;
+
   return (
     <div style={{
       maxWidth: "430px", margin: "0 auto",
       minHeight: "100svh", backgroundColor: "#faf7f2",
       position: "relative",
     }}>
+
+      {/* Trial / Expired banner */}
+      {subStatus === "trial" && (
+        <div style={{
+          position: "fixed", top: 0, left: "50%", transform: "translateX(-50%)",
+          width: "100%", maxWidth: "430px",
+          backgroundColor: "#c9a84c",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "0 16px",
+          height: `${bannerHeight}px`,
+          paddingTop: "env(safe-area-inset-top, 0px)",
+          zIndex: 200, boxSizing: "border-box",
+        }}>
+          <span style={{
+            fontFamily: "'Inter', sans-serif", fontSize: "0.78rem",
+            fontWeight: 600, color: "#fff", letterSpacing: "0.01em",
+          }}>
+            🍷 {trialDaysLeft} day{trialDaysLeft !== 1 ? "s" : ""} left in your free trial
+          </span>
+          <button
+            onClick={() => setShowPaywallModal(true)}
+            style={{
+              background: "rgba(255,255,255,0.22)", border: "none", borderRadius: "20px",
+              fontFamily: "'Inter', sans-serif", fontSize: "0.72rem", fontWeight: 700,
+              color: "#fff", padding: "4px 12px", cursor: "pointer", letterSpacing: "0.03em",
+            }}
+          >
+            Upgrade
+          </button>
+        </div>
+      )}
+
+      {subStatus === "expired" && (
+        <div style={{
+          position: "fixed", top: 0, left: "50%", transform: "translateX(-50%)",
+          width: "100%", maxWidth: "430px",
+          backgroundColor: "#7b1c34",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "0 16px",
+          height: `${bannerHeight}px`,
+          paddingTop: "env(safe-area-inset-top, 0px)",
+          zIndex: 200, boxSizing: "border-box",
+        }}>
+          <span style={{
+            fontFamily: "'Inter', sans-serif", fontSize: "0.78rem",
+            fontWeight: 600, color: "rgba(250,247,242,0.9)", letterSpacing: "0.01em",
+          }}>
+            Your free trial has ended
+          </span>
+          <button
+            onClick={() => setShowPaywallModal(true)}
+            style={{
+              background: "rgba(250,247,242,0.2)", border: "none", borderRadius: "20px",
+              fontFamily: "'Inter', sans-serif", fontSize: "0.72rem", fontWeight: 700,
+              color: "#faf7f2", padding: "4px 12px", cursor: "pointer", letterSpacing: "0.03em",
+            }}
+          >
+            Subscribe
+          </button>
+        </div>
+      )}
+
       {/* Payment success toast */}
       {paymentSuccess && (
         <div style={{
-          position: "fixed", top: "env(safe-area-inset-top, 16px)",
+          position: "fixed", top: `calc(${bannerHeight}px + 12px)`,
           left: "50%", transform: "translateX(-50%)",
           backgroundColor: "#2d6a4f", color: "#fff",
           padding: "10px 20px", borderRadius: "24px",
           fontFamily: "'Inter', sans-serif", fontSize: "0.85rem",
-          fontWeight: 600, zIndex: 200, whiteSpace: "nowrap",
+          fontWeight: 600, zIndex: 201, whiteSpace: "nowrap",
           boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
           display: "flex", alignItems: "center", gap: "8px",
           animation: "fadeInDown 0.3s ease",
@@ -192,20 +260,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* Trial badge */}
-      {subStatus === "trial" && trialDaysLeft <= 3 && (
-        <div style={{
-          position: "fixed", top: "env(safe-area-inset-top, 12px)", right: "12px",
-          backgroundColor: "#c9a84c", color: "#fff",
-          padding: "5px 12px", borderRadius: "20px",
-          fontFamily: "'Inter', sans-serif", fontSize: "0.7rem",
-          fontWeight: 700, zIndex: 200,
-          boxShadow: "0 2px 8px rgba(201,168,76,0.4)",
-          letterSpacing: "0.04em",
-        }}>
-          {trialDaysLeft}d left
-        </div>
-      )}
       <input
         ref={fileInputRef}
         type="file"
@@ -215,12 +269,12 @@ export default function Home() {
         onChange={handleFileChange}
       />
 
-      <div style={{ paddingBottom: "72px" }}>
+      <div style={{ paddingBottom: "72px", paddingTop: `${bannerHeight}px` }}>
         {activeTab === "home" && scanning && <LoadingScreen />}
         {activeTab === "home" && !scanning && (
           <HomeTab
             error={error}
-            onScanClick={() => fileInputRef.current?.click()}
+            onScanClick={handleScanAttempt}
             onSelectWine={setDetailWine}
           />
         )}
@@ -247,8 +301,30 @@ export default function Home() {
         onTabChange={setActiveTab}
         hasResults={wines.length > 0}
         savedCount={savedWines.length}
-        onScanClick={() => fileInputRef.current?.click()}
+        onScanClick={handleScanAttempt}
       />
+
+      {/* Paywall modal overlay */}
+      {showPaywallModal && (
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget) setShowPaywallModal(false); }}
+          style={{
+            position: "fixed", inset: 0, zIndex: 300,
+            backgroundColor: "rgba(0,0,0,0.55)",
+            overflowY: "auto", WebkitOverflowScrolling: "touch" as any,
+            display: "flex", flexDirection: "column",
+          }}
+        >
+          <div style={{ flex: 1, minHeight: "100%" }}>
+            <PaywallScreen
+              userId={userId}
+              trialDaysLeft={subStatus === "trial" ? trialDaysLeft : 0}
+              onSubscribed={() => { setSubStatus("active"); setShowPaywallModal(false); }}
+              onDismiss={() => setShowPaywallModal(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
