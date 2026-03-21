@@ -1,0 +1,8 @@
+{
+  "appId": "com.aarenas.uncorked",
+  "appName": "Uncorked Wine Scanner",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
+}
