@@ -16,20 +16,23 @@ workflows:
     scripts:
       - name: Install dependencies
         script: |
+          cd artifacts/uncorked
           npm install --legacy-peer-deps
       - name: Build web app
         script: |
+          cd artifacts/uncorked
           npx vite build
       - name: Capacitor sync
         script: |
+          cd artifacts/uncorked
           npx cap sync ios
       - name: Install pods
         script: |
-          cd ios/App && pod install
+          cd artifacts/uncorked/ios/App && pod install
       - name: Build iOS
         script: |
           xcode-project build-ipa \
-            --workspace "$XCODE_WORKSPACE" \
+            --workspace "artifacts/uncorked/$XCODE_WORKSPACE" \
             --scheme "$XCODE_SCHEME"
     artifacts:
       - build/ios/ipa/*.ipa
