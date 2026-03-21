@@ -13,5 +13,10 @@
     <true/>
     <key>compileBitcode</key>
     <false/>
+    <key>provisioningProfiles</key>
+    <dict>
+        <key>com.aarenas.uncorked</key>
+        <string>Uncorked App Store</string>
+    </dict>
 </dict>
 </plist>
