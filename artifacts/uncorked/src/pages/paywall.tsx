@@ -9,19 +9,21 @@ interface PaywallProps {
   trialDaysLeft: number;
   onSubscribed: () => void;
   onDismiss?: () => void;
+  autoShowPromo?: boolean;
 }
 
-export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onDismiss }: PaywallProps) {
+export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onDismiss, autoShowPromo }: PaywallProps) {
   const [selectedPlan, setSelectedPlan] = useState<"monthly" | "yearly">("yearly");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState("");
-  const [showEmailInput, setShowEmailInput] = useState(false);
+  const [showEmailInput, setShowEmailInput] = useState(autoShowPromo ?? false);
 
-  const [showPromoInput, setShowPromoInput] = useState(false);
+  const [showPromoInput, setShowPromoInput] = useState(autoShowPromo ?? false);
   const [promoCode, setPromoCode] = useState("");
   const [promoLoading, setPromoLoading] = useState(false);
   const [promoError, setPromoError] = useState<string | null>(null);
+  const [promoSuccess, setPromoSuccess] = useState(false);
 
   const isExpired = trialDaysLeft <= 0;
 
@@ -32,6 +34,16 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
     }
     setPromoLoading(true);
     setPromoError(null);
+
+    // Client-side lifetime promo code check
+    if (promoCode.trim().toLowerCase() === "doctordro") {
+      localStorage.setItem("uncorked_promo_access", "lifetime");
+      setPromoSuccess(true);
+      setPromoLoading(false);
+      setTimeout(() => onSubscribed(), 2200);
+      return;
+    }
+
     try {
       const res = await fetch(apiUrl("api/stripe/redeem-code"), {
         method: "POST",
@@ -43,7 +55,7 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
       });
       const data = await res.json();
       if (!res.ok) {
-        setPromoError(data.error || "Invalid code");
+        setPromoError(data.error || "Invalid promo code. Please try again.");
         setPromoLoading(false);
         return;
       }
@@ -232,7 +244,7 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
 
             {/* Promo code link */}
             <button
-              onClick={() => setShowPromoInput(true)}
+              onClick={() => { setShowPromoInput(true); setShowEmailInput(true); }}
               style={{
                 marginTop: "0.875rem", background: "none", border: "none",
                 fontFamily: "'Inter', sans-serif", fontSize: "0.8rem",
@@ -246,76 +258,109 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
           </>
         ) : showPromoInput ? (
           <>
-            <div style={{ width: "100%", marginBottom: "0.75rem" }}>
-              <label style={{
-                display: "block", fontFamily: "'Inter', sans-serif",
-                fontSize: "0.8rem", fontWeight: 600, color: "rgba(123,28,52,0.6)",
-                marginBottom: "0.5rem", letterSpacing: "0.04em", textTransform: "uppercase",
+            {promoSuccess ? (
+              <div style={{
+                width: "100%", textAlign: "center",
+                padding: "2rem 1rem",
+                display: "flex", flexDirection: "column", alignItems: "center", gap: "1rem",
               }}>
-                Promo Code
-              </label>
-              <input
-                type="text"
-                value={promoCode}
-                onChange={(e) => { setPromoCode(e.target.value); setPromoError(null); }}
-                placeholder="Enter your code..."
-                autoFocus
-                autoCapitalize="none"
-                autoCorrect="off"
-                onKeyDown={(e) => { if (e.key === "Enter") handleRedeemPromo(); }}
-                style={{
-                  width: "100%", padding: "0.875rem 1rem",
-                  border: "1.5px solid rgba(123,28,52,0.2)", borderRadius: "12px",
+                <div style={{
+                  width: "64px", height: "64px", borderRadius: "50%",
+                  backgroundColor: "rgba(45,106,79,0.12)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+                    <polyline points="20 6 9 17 4 12" stroke="#2d6a4f" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </div>
+                <p style={{
+                  fontFamily: "'Cormorant Garamond', Georgia, serif",
+                  fontSize: "1.4rem", fontWeight: 600, color: "#2d6a4f",
+                  lineHeight: 1.3, margin: 0,
+                }}>
+                  Code applied!
+                </p>
+                <p style={{
                   fontFamily: "'Inter', sans-serif", fontSize: "0.9rem",
-                  color: "#3c0f19", backgroundColor: "#fff",
-                  outline: "none", boxSizing: "border-box",
-                  letterSpacing: "0.04em",
-                }}
-              />
-            </div>
+                  color: "rgba(60,15,25,0.65)", margin: 0, lineHeight: 1.5,
+                }}>
+                  Enjoy unlimited access to Uncorked!
+                </p>
+              </div>
+            ) : (
+              <>
+                <div style={{ width: "100%", marginBottom: "0.75rem" }}>
+                  <label style={{
+                    display: "block", fontFamily: "'Inter', sans-serif",
+                    fontSize: "0.8rem", fontWeight: 600, color: "rgba(123,28,52,0.6)",
+                    marginBottom: "0.5rem", letterSpacing: "0.04em", textTransform: "uppercase",
+                  }}>
+                    Promo Code
+                  </label>
+                  <input
+                    type="text"
+                    value={promoCode}
+                    onChange={(e) => { setPromoCode(e.target.value); setPromoError(null); }}
+                    placeholder="Enter your code..."
+                    autoFocus
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    onKeyDown={(e) => { if (e.key === "Enter") handleRedeemPromo(); }}
+                    style={{
+                      width: "100%", padding: "0.875rem 1rem",
+                      border: "1.5px solid rgba(123,28,52,0.2)", borderRadius: "12px",
+                      fontFamily: "'Inter', sans-serif", fontSize: "0.9rem",
+                      color: "#3c0f19", backgroundColor: "#fff",
+                      outline: "none", boxSizing: "border-box",
+                      letterSpacing: "0.04em",
+                    }}
+                  />
+                </div>
 
-            {promoError && (
-              <p style={{
-                width: "100%", fontFamily: "'Inter', sans-serif",
-                fontSize: "0.8rem", color: "#7b1c34",
-                textAlign: "center", marginBottom: "0.75rem",
-                padding: "0.5rem", backgroundColor: "rgba(123,28,52,0.06)",
-                borderRadius: "8px",
-              }}>
-                {promoError}
-              </p>
+                {promoError && (
+                  <p style={{
+                    width: "100%", fontFamily: "'Inter', sans-serif",
+                    fontSize: "0.8rem", color: "#7b1c34",
+                    textAlign: "center", marginBottom: "0.75rem",
+                    padding: "0.5rem", backgroundColor: "rgba(123,28,52,0.06)",
+                    borderRadius: "8px",
+                  }}>
+                    {promoError}
+                  </p>
+                )}
+
+                <button
+                  onClick={handleRedeemPromo}
+                  disabled={promoLoading}
+                  style={{
+                    width: "100%", padding: "1rem",
+                    backgroundColor: promoLoading ? "rgba(123,28,52,0.5)" : "#7b1c34",
+                    color: "#faf7f2", border: "none", borderRadius: "14px",
+                    fontFamily: "'Cormorant Garamond', Georgia, serif",
+                    fontSize: "1.25rem", fontWeight: 600,
+                    letterSpacing: "0.04em",
+                    cursor: promoLoading ? "default" : "pointer",
+                    boxShadow: promoLoading ? "none" : "0 6px 24px rgba(123,28,52,0.28)",
+                    transition: "all 0.2s", marginBottom: "0.75rem",
+                  }}
+                >
+                  {promoLoading ? "Checking…" : "Apply Code"}
+                </button>
+
+                <button
+                  onClick={() => { setShowPromoInput(false); setShowEmailInput(false); setPromoCode(""); setPromoError(null); }}
+                  style={{
+                    width: "100%", padding: "0.75rem",
+                    background: "none", border: "none",
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: "0.85rem", color: "rgba(123,28,52,0.45)",
+                    cursor: "pointer",
+                  }}
+                >
+                  ← Back
+                </button>
+              </>
             )}
-
-            <button
-              onClick={handleRedeemPromo}
-              disabled={promoLoading}
-              style={{
-                width: "100%", padding: "1rem",
-                backgroundColor: promoLoading ? "rgba(123,28,52,0.5)" : "#7b1c34",
-                color: "#faf7f2", border: "none", borderRadius: "14px",
-                fontFamily: "'Cormorant Garamond', Georgia, serif",
-                fontSize: "1.25rem", fontWeight: 600,
-                letterSpacing: "0.04em",
-                cursor: promoLoading ? "default" : "pointer",
-                boxShadow: promoLoading ? "none" : "0 6px 24px rgba(123,28,52,0.28)",
-                transition: "all 0.2s", marginBottom: "0.75rem",
-              }}
-            >
-              {promoLoading ? "Checking…" : "Apply Code"}
-            </button>
-
-            <button
-              onClick={() => { setShowPromoInput(false); setPromoCode(""); setPromoError(null); }}
-              style={{
-                width: "100%", padding: "0.75rem",
-                background: "none", border: "none",
-                fontFamily: "'Inter', sans-serif",
-                fontSize: "0.85rem", color: "rgba(123,28,52,0.45)",
-                cursor: "pointer",
-              }}
-            >
-              ← Back
-            </button>
           </>
         ) : (
           <>

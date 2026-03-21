@@ -57,6 +57,7 @@ export default function Home() {
   const [trialDaysLeft, setTrialDaysLeft] = useState(7);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [showPaywallModal, setShowPaywallModal] = useState(false);
+  const [showPaywallWithPromo, setShowPaywallWithPromo] = useState(false);
 
   useEffect(() => {
     // Handle return from Stripe checkout (?payment=success or ?subscribed=true)
@@ -72,6 +73,14 @@ export default function Home() {
 
     async function initUser() {
       try {
+        // Check for local promo access first (e.g. "doctordro" lifetime code)
+        if (localStorage.getItem("uncorked_promo_access") === "lifetime") {
+          setSubStatus("active");
+          // Still register user in background, but don't wait
+          fetch(apiUrl("api/stripe/user"), { method: "POST", headers: { "x-user-id": userId } }).catch(() => {});
+          return;
+        }
+
         // Register or ensure user exists on server
         await fetch(apiUrl("api/stripe/user"), {
           method: "POST",
@@ -200,16 +209,30 @@ export default function Home() {
           }}>
             🍷 {trialDaysLeft} day{trialDaysLeft !== 1 ? "s" : ""} left in your free trial
           </span>
-          <button
-            onClick={() => setShowPaywallModal(true)}
-            style={{
-              background: "rgba(255,255,255,0.22)", border: "none", borderRadius: "20px",
-              fontFamily: "'Inter', sans-serif", fontSize: "0.72rem", fontWeight: 700,
-              color: "#fff", padding: "4px 12px", cursor: "pointer", letterSpacing: "0.03em",
-            }}
-          >
-            Upgrade
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <button
+              onClick={() => { setShowPaywallWithPromo(true); setShowPaywallModal(true); }}
+              style={{
+                background: "none", border: "none",
+                fontFamily: "'Inter', sans-serif", fontSize: "0.65rem",
+                color: "rgba(255,255,255,0.75)", cursor: "pointer",
+                textDecoration: "underline", textDecorationStyle: "dotted",
+                padding: "2px", letterSpacing: "0.01em",
+              }}
+            >
+              Have a code?
+            </button>
+            <button
+              onClick={() => setShowPaywallModal(true)}
+              style={{
+                background: "rgba(255,255,255,0.22)", border: "none", borderRadius: "20px",
+                fontFamily: "'Inter', sans-serif", fontSize: "0.72rem", fontWeight: 700,
+                color: "#fff", padding: "4px 12px", cursor: "pointer", letterSpacing: "0.03em",
+              }}
+            >
+              Upgrade
+            </button>
+          </div>
         </div>
       )}
 
@@ -307,7 +330,7 @@ export default function Home() {
       {/* Paywall modal overlay */}
       {showPaywallModal && (
         <div
-          onClick={(e) => { if (e.target === e.currentTarget) setShowPaywallModal(false); }}
+          onClick={(e) => { if (e.target === e.currentTarget) { setShowPaywallModal(false); setShowPaywallWithPromo(false); } }}
           style={{
             position: "fixed", inset: 0, zIndex: 300,
             backgroundColor: "rgba(0,0,0,0.55)",
@@ -319,8 +342,9 @@ export default function Home() {
             <PaywallScreen
               userId={userId}
               trialDaysLeft={subStatus === "trial" ? trialDaysLeft : 0}
-              onSubscribed={() => { setSubStatus("active"); setShowPaywallModal(false); }}
-              onDismiss={() => setShowPaywallModal(false)}
+              onSubscribed={() => { setSubStatus("active"); setShowPaywallModal(false); setShowPaywallWithPromo(false); }}
+              onDismiss={() => { setShowPaywallModal(false); setShowPaywallWithPromo(false); }}
+              autoShowPromo={showPaywallWithPromo}
             />
           </div>
         </div>
