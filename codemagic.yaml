@@ -9,9 +9,6 @@ workflows:
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.aarenas.uncorked
-        provisioning_profile_specifier: "Uncorked App Store"
-        code_signing_identity: "Apple Distribution"
-        automatic_provisioning: true
       vars:
         BUNDLE_ID: "com.aarenas.uncorked"
         XCODE_WORKSPACE: "ios/App/App.xcworkspace"
