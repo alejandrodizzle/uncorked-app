@@ -13,6 +13,8 @@
     <true/>
     <key>compileBitcode</key>
     <false/>
+    <key>manageAppVersionAndBuildNumber</key>
+    <true/>
     <key>provisioningProfiles</key>
     <dict>
         <key>com.aarenas.uncorked</key>
