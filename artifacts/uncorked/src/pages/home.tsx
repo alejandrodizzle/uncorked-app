@@ -18,6 +18,16 @@ function getOrCreateUserId(): string {
   return id;
 }
 
+// ── iOS App Store compliance ───────────────────────────────────────────────────
+// Apple requires in-app purchases to use IAP, not third-party payment processors.
+// This flag is true only when running inside a Capacitor native iOS/Android shell.
+// When false (browser / web app), the full Stripe paywall runs normally.
+// To re-enable Stripe on iOS: remove the early-return in initUser() below.
+function isNativeIOSBuild(): boolean {
+  return !!(window as any).Capacitor?.isNativePlatform?.();
+}
+// ──────────────────────────────────────────────────────────────────────────────
+
 export type Wine = {
   name: string;
   vintage: number | null;
@@ -72,6 +82,15 @@ export default function Home() {
     }
 
     async function initUser() {
+      // ── iOS App Store: all features free, no paywall ────────────────────────
+      // Stripe is disabled for native iOS builds per Apple guidelines.
+      // Remove this block to re-enable Stripe on iOS (e.g. when IAP is ready).
+      if (isNativeIOSBuild()) {
+        setSubStatus("active");
+        return;
+      }
+      // ── [STRIPE PAYWALL — web only, starts here] ────────────────────────────
+
       // ── Step 1: promo code — instant, no network ────────────────────────────
       if (localStorage.getItem("uncorked_promo_access") === "lifetime") {
         setSubStatus("active");
@@ -145,7 +164,8 @@ export default function Home() {
   };
 
   const handleScanAttempt = () => {
-    if (subStatus === "expired") {
+    // [STRIPE] Paywall gate — web only; native iOS always allows scanning
+    if (!isNativeIOSBuild() && subStatus === "expired") {
       setShowPaywallModal(true);
       return;
     }
@@ -155,7 +175,8 @@ export default function Home() {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (subStatus === "expired") {
+    // [STRIPE] Paywall gate — web only; native iOS always allows scanning
+    if (!isNativeIOSBuild() && subStatus === "expired") {
       setShowPaywallModal(true);
       return;
     }
@@ -347,8 +368,8 @@ export default function Home() {
         onScanClick={handleScanAttempt}
       />
 
-      {/* Paywall modal overlay */}
-      {showPaywallModal && (
+      {/* [STRIPE] Paywall modal overlay — web only, never shown on native iOS */}
+      {!isNativeIOSBuild() && showPaywallModal && (
         <div
           onClick={(e) => { if (e.target === e.currentTarget) { setShowPaywallModal(false); setShowPaywallWithPromo(false); } }}
           style={{
