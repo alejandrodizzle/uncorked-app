@@ -72,22 +72,41 @@ export default function Home() {
     }
 
     async function initUser() {
-      try {
-        // Check for local promo access first (e.g. "doctordro" lifetime code)
-        if (localStorage.getItem("uncorked_promo_access") === "lifetime") {
-          setSubStatus("active");
-          // Still register user in background, but don't wait
-          fetch(apiUrl("api/stripe/user"), { method: "POST", headers: { "x-user-id": userId } }).catch(() => {});
-          return;
-        }
+      // ── Step 1: promo code — instant, no network ────────────────────────────
+      if (localStorage.getItem("uncorked_promo_access") === "lifetime") {
+        setSubStatus("active");
+        fetch(apiUrl("api/stripe/user"), { method: "POST", headers: { "x-user-id": userId } }).catch(() => {});
+        return;
+      }
 
-        // Register or ensure user exists on server
+      // ── Step 2: compute trial status from localStorage IMMEDIATELY ──────────
+      // This runs synchronously before any await so the banner renders on the
+      // very first paint — no waiting for a network response.
+      const TRIAL_START_KEY = "uncorked_trial_start";
+      const MS_PER_DAY = 1000 * 60 * 60 * 24;
+      const TRIAL_DAYS = 7;
+
+      let trialStart = localStorage.getItem(TRIAL_START_KEY);
+      if (!trialStart) {
+        // First ever visit — stamp today and give them a full trial
+        trialStart = Date.now().toString();
+        localStorage.setItem(TRIAL_START_KEY, trialStart);
+      }
+
+      const daysSinceStart = (Date.now() - Number(trialStart)) / MS_PER_DAY;
+      const localDaysLeft = Math.max(0, Math.ceil(TRIAL_DAYS - daysSinceStart));
+
+      // Show banner immediately — before any await
+      setSubStatus(localDaysLeft > 0 ? "trial" : "expired");
+      setTrialDaysLeft(localDaysLeft);
+
+      // ── Step 3: register user on server then get authoritative status ───────
+      try {
         await fetch(apiUrl("api/stripe/user"), {
           method: "POST",
           headers: { "x-user-id": userId },
         });
 
-        // Check subscription status
         const res = await fetch(apiUrl("api/stripe/subscription"), {
           headers: { "x-user-id": userId },
         });
@@ -97,15 +116,14 @@ export default function Home() {
           setSubStatus("active");
         } else if (data.status === "trial") {
           setSubStatus("trial");
-          setTrialDaysLeft(data.trialDaysLeft ?? 7);
-        } else {
+          setTrialDaysLeft(data.trialDaysLeft ?? localDaysLeft);
+        } else if (data.status === "expired") {
           setSubStatus("expired");
           setTrialDaysLeft(0);
         }
+        // Any other server status: keep the locally-computed values already shown
       } catch {
-        // On error, default to trial so app remains usable
-        setSubStatus("trial");
-        setTrialDaysLeft(7);
+        // Network unavailable — local calculation already displayed, leave it
       }
     }
 
