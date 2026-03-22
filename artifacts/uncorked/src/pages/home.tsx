@@ -80,25 +80,27 @@ export default function Home() {
       }
 
       // ── Step 2: compute trial status from localStorage IMMEDIATELY ──────────
-      // This runs synchronously before any await so the banner renders on the
-      // very first paint — no waiting for a network response.
-      const TRIAL_START_KEY = "uncorked_trial_start";
-      const MS_PER_DAY = 1000 * 60 * 60 * 24;
-      const TRIAL_DAYS = 7;
-
-      let trialStart = localStorage.getItem(TRIAL_START_KEY);
-      if (!trialStart) {
-        // First ever visit — stamp today and give them a full trial
-        trialStart = Date.now().toString();
-        localStorage.setItem(TRIAL_START_KEY, trialStart);
+      // Runs synchronously before any await — banner renders on first paint.
+      if (!localStorage.getItem("trialStart") && !localStorage.getItem("subscribed")) {
+        localStorage.setItem("trialStart", Date.now().toString());
       }
 
-      const daysSinceStart = (Date.now() - Number(trialStart)) / MS_PER_DAY;
-      const localDaysLeft = Math.max(0, Math.ceil(TRIAL_DAYS - daysSinceStart));
+      const trialStart = localStorage.getItem("trialStart");
+      const isSubscribed = !!localStorage.getItem("subscribed");
+
+      let localDaysLeft = 0;
+      if (trialStart && !isSubscribed) {
+        const daysElapsed = Math.floor((Date.now() - parseInt(trialStart)) / (1000 * 60 * 60 * 24));
+        localDaysLeft = Math.max(0, 7 - daysElapsed);
+      }
 
       // Show banner immediately — before any await
-      setSubStatus(localDaysLeft > 0 ? "trial" : "expired");
-      setTrialDaysLeft(localDaysLeft);
+      if (isSubscribed) {
+        setSubStatus("active");
+      } else {
+        setSubStatus(localDaysLeft > 0 ? "trial" : "expired");
+        setTrialDaysLeft(localDaysLeft);
+      }
 
       // ── Step 3: register user on server then get authoritative status ───────
       try {
