@@ -1,4 +1,36 @@
 workflows:
+  android-play-store:
+    name: Uncorked Android Play Store
+    max_build_duration: 90
+    instance_type: mac_mini_m2
+    environment:
+      android_signing:
+        - keystore_reference: uncorked_keystore
+      vars:
+        PACKAGE_NAME: "com.aarenas.uncorked"
+    scripts:
+      - name: Install dependencies
+        script: |
+          cd artifacts/uncorked
+          npm install --legacy-peer-deps
+      - name: Build web app
+        script: |
+          cd artifacts/uncorked
+          npx vite build
+      - name: Capacitor sync Android
+        script: |
+          cd artifacts/uncorked
+          npx cap sync android
+      - name: Build Android release
+        script: |
+          cd artifacts/uncorked/android && ./gradlew bundleRelease
+    artifacts:
+      - artifacts/uncorked/android/app/build/outputs/bundle/release/*.aab
+    publishing:
+      google_play:
+        credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
+        track: internal
+
   ios-app-store:
     name: Uncorked iOS App Store
     max_build_duration: 90

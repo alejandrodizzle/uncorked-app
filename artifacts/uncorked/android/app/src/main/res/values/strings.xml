@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Uncorked</string>
+    <string name="title_activity_main">Uncorked</string>
+    <string name="package_name">com.aarenas.uncorked</string>
+    <string name="custom_url_scheme">com.aarenas.uncorked</string>
+</resources>
