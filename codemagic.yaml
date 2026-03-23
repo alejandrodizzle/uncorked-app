@@ -32,7 +32,8 @@ workflows:
       - name: Build Android release
         script: |
           export JAVA_HOME=/Library/Java/JavaVirtualMachines/zulu-21.jdk/Contents/Home
-          cd artifacts/uncorked/android && ./gradlew bundleRelease
+          cd artifacts/uncorked/android
+          ./gradlew bundleRelease
     artifacts:
       - artifacts/uncorked/android/app/build/outputs/bundle/release/*.aab
     publishing:
