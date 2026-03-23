@@ -6,6 +6,10 @@ workflows:
     environment:
       android_signing:
         - keystore_reference: uncorked_keystore
+          keystore: uncorked_keystore
+          key_alias: uncorked
+          key_password: Uncorked2024!
+          store_password: Uncorked2024!
       vars:
         PACKAGE_NAME: "com.aarenas.uncorked"
     scripts:
