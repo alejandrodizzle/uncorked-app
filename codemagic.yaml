@@ -53,6 +53,7 @@ workflows:
       vars:
         BUNDLE_ID: "com.aarenas.uncorked"
         APP_STORE_APP_ID: "com.aarenas.uncorked"
+        BUILD_NUMBER: 1
         XCODE_WORKSPACE: "artifacts/uncorked/ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
     scripts:
@@ -70,13 +71,8 @@ workflows:
           npx cap sync ios
       - name: Set build number
         script: |
-          BUILD_NUMBER=$(($(app-store-connect get-latest-build-number \
-            --app-id $APP_STORE_APP_ID \
-            --pre-release-version 1.0.1 \
-            2>/dev/null || echo 0) + 1))
-          echo "Using build number: $BUILD_NUMBER"
           cd artifacts/uncorked/ios/App
-          agvtool new-version -all $BUILD_NUMBER
+          agvtool new-version -all $((6 + $BUILD_NUMBER))
       - name: Install pods
         script: |
           cd artifacts/uncorked/ios/App && pod install
