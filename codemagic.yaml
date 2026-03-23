@@ -61,7 +61,7 @@ workflows:
       - name: Set build number
         script: |
           cd artifacts/uncorked/ios/App
-          agvtool new-version -all 5
+          agvtool new-version -all 6
       - name: Install pods
         script: |
           cd artifacts/uncorked/ios/App && pod install
