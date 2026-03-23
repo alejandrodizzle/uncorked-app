@@ -9,7 +9,7 @@ workflows:
       android_signing:
         - uncorked_keystore
       vars:
-        JAVA_HOME: /Library/Java/JavaVirtualMachines/zulu-17.jdk/Contents/Home
+        JAVA_HOME: /Library/Java/JavaVirtualMachines/zulu-21.jdk/Contents/Home
         PACKAGE_NAME: "com.aarenas.uncorked"
     scripts:
       - name: Install dependencies
@@ -26,12 +26,12 @@ workflows:
           npx cap sync android
       - name: Set Java version
         script: |
-          export JAVA_HOME=$(/usr/libexec/java_home -v 17)
+          export JAVA_HOME=/Library/Java/JavaVirtualMachines/zulu-21.jdk/Contents/Home
           echo "JAVA_HOME=$JAVA_HOME" >> $CM_ENV
           java -version
       - name: Build Android release
         script: |
-          export JAVA_HOME=/Library/Java/JavaVirtualMachines/zulu-17.jdk/Contents/Home
+          export JAVA_HOME=/Library/Java/JavaVirtualMachines/zulu-21.jdk/Contents/Home
           cd artifacts/uncorked/android && ./gradlew bundleRelease
     artifacts:
       - artifacts/uncorked/android/app/build/outputs/bundle/release/*.aab
