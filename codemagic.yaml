@@ -58,6 +58,10 @@ workflows:
         script: |
           cd artifacts/uncorked
           npx cap sync ios
+      - name: Set build number
+        script: |
+          cd artifacts/uncorked/ios/App
+          agvtool new-version -all 5
       - name: Install pods
         script: |
           cd artifacts/uncorked/ios/App && pod install
