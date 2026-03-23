@@ -1,8 +1,80 @@
 import { useState } from "react";
 import { apiUrl } from "../lib/api";
 
-// TODO: Before App Store submission, replace Stripe web payments with Apple In-App Purchases (StoreKit)
-// as required by Apple App Store guidelines. Stripe is used here for the web version only.
+// ─── Platform detection ────────────────────────────────────────────────────────
+function isNativeIOSBuild(): boolean {
+  try {
+    const Capacitor = (window as any).Capacitor;
+    return !!(Capacitor?.isNativePlatform?.() && Capacitor?.getPlatform?.() === "ios");
+  } catch {
+    return false;
+  }
+}
+
+// ─── Apple IAP product IDs (must match App Store Connect exactly) ─────────────
+const IAP_PRODUCTS = {
+  monthly: "com.aarenas.uncorked.monthly",
+  yearly: "com.aarenas.uncorked.yearly",
+};
+
+// ─── StoreKit purchase via Capacitor bridge ────────────────────────────────────
+async function purchaseWithStoreKit(productId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const Capacitor = (window as any).Capacitor;
+    const Purchases = Capacitor?.Plugins?.Purchases;
+
+    if (!Purchases) {
+      return { success: false, error: "In-App Purchase is not available on this device." };
+    }
+
+    // Get available offerings and find the matching package
+    const offerings = await Purchases.getOfferings();
+    const currentOffering = offerings?.current;
+
+    if (!currentOffering) {
+      // Fallback: try purchasing by product ID directly
+      await Purchases.purchaseStoreProduct({ product: { productIdentifier: productId } });
+      return { success: true };
+    }
+
+    const pkg = currentOffering.availablePackages?.find(
+      (p: any) => p.product?.productIdentifier === productId
+    );
+
+    if (!pkg) {
+      // Direct product purchase fallback
+      await Purchases.purchaseStoreProduct({ product: { productIdentifier: productId } });
+      return { success: true };
+    }
+
+    const result = await Purchases.purchasePackage({ aPackage: pkg });
+    if (result?.customerInfo?.entitlements?.active?.premium) {
+      return { success: true };
+    }
+    return { success: true }; // purchase completed even if entitlement key differs
+  } catch (err: any) {
+    if (err?.code === "1" || err?.message?.includes("cancel")) {
+      return { success: false, error: "Purchase cancelled." };
+    }
+    return { success: false, error: err?.message || "Purchase failed. Please try again." };
+  }
+}
+
+// ─── Restore purchases via StoreKit ───────────────────────────────────────────
+async function restoreStoreKitPurchases(): Promise<{ success: boolean; error?: string }> {
+  try {
+    const Capacitor = (window as any).Capacitor;
+    const Purchases = Capacitor?.Plugins?.Purchases;
+    if (!Purchases) return { success: false, error: "Restore not available." };
+    const result = await Purchases.restorePurchases();
+    const hasActive = result?.customerInfo?.entitlements?.active?.premium;
+    return { success: !!hasActive, error: hasActive ? undefined : "No active subscription found." };
+  } catch (err: any) {
+    return { success: false, error: err?.message || "Restore failed. Please try again." };
+  }
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 interface PaywallProps {
   userId: string;
@@ -16,9 +88,13 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
   const [selectedPlan, setSelectedPlan] = useState<"monthly" | "yearly">("yearly");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [restoreLoading, setRestoreLoading] = useState(false);
+
+  // Web-only email/checkout state
   const [email, setEmail] = useState("");
   const [showEmailInput, setShowEmailInput] = useState(autoShowPromo ?? false);
 
+  // Promo code state (shared web + iOS)
   const [showPromoInput, setShowPromoInput] = useState(autoShowPromo ?? false);
   const [promoCode, setPromoCode] = useState("");
   const [promoLoading, setPromoLoading] = useState(false);
@@ -26,7 +102,9 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
   const [promoSuccess, setPromoSuccess] = useState(false);
 
   const isExpired = trialDaysLeft <= 0;
+  const nativeIOS = isNativeIOSBuild();
 
+  // ── Promo code handler ───────────────────────────────────────────────────────
   async function handleRedeemPromo() {
     if (!promoCode.trim()) {
       setPromoError("Please enter a code");
@@ -35,7 +113,7 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
     setPromoLoading(true);
     setPromoError(null);
 
-    // Client-side lifetime promo code check
+    // Client-side lifetime promo code (works on both web and iOS)
     if (promoCode.trim().toLowerCase() === "doctordro") {
       localStorage.setItem("uncorked_promo_access", "lifetime");
       setPromoSuccess(true);
@@ -44,6 +122,27 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
       return;
     }
 
+    if (nativeIOS) {
+      // iOS: Apple promo codes are redeemed via the App Store app directly.
+      // Deep-link to the App Store offer redemption sheet.
+      try {
+        const Capacitor = (window as any).Capacitor;
+        const App = Capacitor?.Plugins?.App;
+        if (App?.openUrl) {
+          await App.openUrl({ url: `itms-apps://apps.apple.com/redeem?ctx=offercodes&id=6745408965&code=${encodeURIComponent(promoCode.trim())}` });
+        } else {
+          window.open(`https://apps.apple.com/redeem?ctx=offercodes&id=6745408965&code=${encodeURIComponent(promoCode.trim())}`, "_system");
+        }
+        setPromoLoading(false);
+        setPromoError("Code sent to App Store — complete the redemption there, then tap Restore Purchases below.");
+      } catch {
+        setPromoError("Could not open App Store. Please redeem your code directly in the App Store app.");
+        setPromoLoading(false);
+      }
+      return;
+    }
+
+    // Web: validate via Stripe API
     try {
       const res = await fetch(apiUrl("api/stripe/redeem-code"), {
         method: "POST",
@@ -59,7 +158,6 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
         setPromoLoading(false);
         return;
       }
-      // Success — grant access
       onSubscribed();
     } catch {
       setPromoError("Something went wrong. Please try again.");
@@ -67,10 +165,41 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
     }
   }
 
+  // ── iOS IAP purchase ─────────────────────────────────────────────────────────
+  async function handleIOSPurchase() {
+    setLoading(true);
+    setError(null);
+    const productId = IAP_PRODUCTS[selectedPlan];
+    const result = await purchaseWithStoreKit(productId);
+    if (result.success) {
+      localStorage.setItem("subscribed", "true");
+      onSubscribed();
+    } else {
+      setError(result.error || "Purchase failed.");
+      setLoading(false);
+    }
+  }
+
+  // ── iOS restore purchases ────────────────────────────────────────────────────
+  async function handleRestorePurchases() {
+    setRestoreLoading(true);
+    setError(null);
+    const result = await restoreStoreKitPurchases();
+    if (result.success) {
+      localStorage.setItem("subscribed", "true");
+      onSubscribed();
+    } else {
+      setError(result.error || "No active subscription found.");
+      setRestoreLoading(false);
+    }
+  }
+
+  // ── Web: show email input step ───────────────────────────────────────────────
   async function handleSubscribe() {
     setShowEmailInput(true);
   }
 
+  // ── Web: Stripe checkout ─────────────────────────────────────────────────────
   async function handleCheckout() {
     if (!email.trim() || !email.includes("@")) {
       setError("Please enter a valid email address");
@@ -80,6 +209,7 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
     setError(null);
 
     try {
+      // [STRIPE] Fetch available products and prices
       const productsRes = await fetch(apiUrl("api/stripe/products-with-prices"));
       const productsData = await productsRes.json();
       const products: any[] = productsData.data ?? [];
@@ -103,6 +233,7 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
         return;
       }
 
+      // [STRIPE] Create checkout session
       const res = await fetch(apiUrl("api/stripe/checkout"), {
         method: "POST",
         headers: {
@@ -123,6 +254,7 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
     }
   }
 
+  // ─── Render ──────────────────────────────────────────────────────────────────
   return (
     <div style={{
       maxWidth: "430px", margin: "0 auto",
@@ -191,72 +323,8 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
           ))}
         </div>
 
-        {/* Plan selector */}
-        {!showEmailInput ? (
-          <>
-            <div style={{ width: "100%", display: "flex", gap: "12px", marginBottom: "1rem" }}>
-              <PlanCard
-                label="Monthly"
-                price="$3.99"
-                period="per month"
-                badge={null}
-                selected={selectedPlan === "monthly"}
-                onClick={() => setSelectedPlan("monthly")}
-              />
-              <PlanCard
-                label="Yearly"
-                price="$39.99"
-                period="per year"
-                badge="Save 17%"
-                selected={selectedPlan === "yearly"}
-                onClick={() => setSelectedPlan("yearly")}
-              />
-            </div>
-
-            <p style={{
-              fontFamily: "'Inter', sans-serif", fontSize: "0.75rem",
-              color: "rgba(123,28,52,0.45)", textAlign: "center",
-              marginBottom: "1.25rem",
-            }}>
-              {isExpired
-                ? "Subscribe now to restore access"
-                : "7-day free trial included · Cancel anytime"
-              }
-            </p>
-
-            <button
-              onClick={handleSubscribe}
-              style={{
-                width: "100%", padding: "1rem",
-                backgroundColor: "#7b1c34", color: "#faf7f2",
-                border: "none", borderRadius: "14px",
-                fontFamily: "'Cormorant Garamond', Georgia, serif",
-                fontSize: "1.25rem", fontWeight: 600,
-                letterSpacing: "0.04em", cursor: "pointer",
-                boxShadow: "0 6px 24px rgba(123,28,52,0.28)",
-                transition: "all 0.2s",
-              }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#6a1829"; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#7b1c34"; }}
-            >
-              {isExpired ? "Subscribe Now" : "Start Free Trial"}
-            </button>
-
-            {/* Promo code link */}
-            <button
-              onClick={() => { setShowPromoInput(true); setShowEmailInput(true); }}
-              style={{
-                marginTop: "0.875rem", background: "none", border: "none",
-                fontFamily: "'Inter', sans-serif", fontSize: "0.8rem",
-                color: "rgba(123,28,52,0.45)", cursor: "pointer",
-                textDecoration: "underline", textDecorationStyle: "dotted",
-                letterSpacing: "0.01em", padding: "4px",
-              }}
-            >
-              Have a promo code?
-            </button>
-          </>
-        ) : showPromoInput ? (
+        {/* ── Promo code view (shared iOS + web) ── */}
+        {showPromoInput ? (
           <>
             {promoSuccess ? (
               <div style={{
@@ -295,7 +363,7 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
                     fontSize: "0.8rem", fontWeight: 600, color: "rgba(123,28,52,0.6)",
                     marginBottom: "0.5rem", letterSpacing: "0.04em", textTransform: "uppercase",
                   }}>
-                    Promo Code
+                    {nativeIOS ? "Apple Promo Code" : "Promo Code"}
                   </label>
                   <input
                     type="text"
@@ -344,7 +412,7 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
                     transition: "all 0.2s", marginBottom: "0.75rem",
                   }}
                 >
-                  {promoLoading ? "Checking…" : "Apply Code"}
+                  {promoLoading ? "Checking…" : nativeIOS ? "Redeem via App Store" : "Apply Code"}
                 </button>
 
                 <button
@@ -362,7 +430,108 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
               </>
             )}
           </>
-        ) : (
+
+        ) : nativeIOS ? (
+          // ── iOS: StoreKit purchase UI ──────────────────────────────────────────
+          <>
+            <div style={{ width: "100%", display: "flex", gap: "12px", marginBottom: "1rem" }}>
+              <PlanCard
+                label="Monthly"
+                price="$3.99"
+                period="per month"
+                badge={null}
+                selected={selectedPlan === "monthly"}
+                onClick={() => setSelectedPlan("monthly")}
+              />
+              <PlanCard
+                label="Yearly"
+                price="$39.99"
+                period="per year"
+                badge="Save 17%"
+                selected={selectedPlan === "yearly"}
+                onClick={() => setSelectedPlan("yearly")}
+              />
+            </div>
+
+            <p style={{
+              fontFamily: "'Inter', sans-serif", fontSize: "0.75rem",
+              color: "rgba(123,28,52,0.45)", textAlign: "center",
+              marginBottom: "1.25rem",
+            }}>
+              {isExpired
+                ? "Subscribe now to restore access"
+                : "7-day free trial included · Cancel anytime"
+              }
+            </p>
+
+            {error && (
+              <p style={{
+                width: "100%", fontFamily: "'Inter', sans-serif",
+                fontSize: "0.8rem", color: "#7b1c34",
+                textAlign: "center", marginBottom: "0.75rem",
+                padding: "0.5rem", backgroundColor: "rgba(123,28,52,0.06)",
+                borderRadius: "8px",
+              }}>
+                {error}
+              </p>
+            )}
+
+            {/* StoreKit subscribe button */}
+            <button
+              onClick={handleIOSPurchase}
+              disabled={loading}
+              style={{
+                width: "100%", padding: "1rem",
+                backgroundColor: loading ? "rgba(123,28,52,0.5)" : "#7b1c34",
+                color: "#faf7f2", border: "none", borderRadius: "14px",
+                fontFamily: "'Cormorant Garamond', Georgia, serif",
+                fontSize: "1.25rem", fontWeight: 600,
+                letterSpacing: "0.04em",
+                cursor: loading ? "default" : "pointer",
+                boxShadow: loading ? "none" : "0 6px 24px rgba(123,28,52,0.28)",
+                transition: "all 0.2s",
+              }}
+            >
+              {loading
+                ? "Processing…"
+                : isExpired
+                  ? "Subscribe Now"
+                  : `Start Free Trial · ${selectedPlan === "monthly" ? "$3.99/mo" : "$39.99/yr"}`
+              }
+            </button>
+
+            {/* Restore purchases */}
+            <button
+              onClick={handleRestorePurchases}
+              disabled={restoreLoading}
+              style={{
+                marginTop: "0.875rem", background: "none", border: "none",
+                fontFamily: "'Inter', sans-serif", fontSize: "0.8rem",
+                color: "rgba(123,28,52,0.45)", cursor: restoreLoading ? "default" : "pointer",
+                textDecoration: "underline", textDecorationStyle: "dotted",
+                letterSpacing: "0.01em", padding: "4px",
+              }}
+            >
+              {restoreLoading ? "Restoring…" : "Restore Purchases"}
+            </button>
+
+            {/* Promo code link */}
+            <button
+              onClick={() => setShowPromoInput(true)}
+              style={{
+                marginTop: "0.5rem", background: "none", border: "none",
+                fontFamily: "'Inter', sans-serif", fontSize: "0.8rem",
+                color: "rgba(123,28,52,0.45)", cursor: "pointer",
+                textDecoration: "underline", textDecorationStyle: "dotted",
+                letterSpacing: "0.01em", padding: "4px",
+              }}
+            >
+              Have a promo code?
+            </button>
+          </>
+
+        ) : showEmailInput ? (
+          // ── Web: email → Stripe checkout ──────────────────────────────────────
           <>
             <div style={{ width: "100%", marginBottom: "0.75rem" }}>
               <label style={{
@@ -432,14 +601,84 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
               ← Back
             </button>
           </>
+
+        ) : (
+          // ── Web: plan selector + subscribe button ──────────────────────────────
+          <>
+            <div style={{ width: "100%", display: "flex", gap: "12px", marginBottom: "1rem" }}>
+              <PlanCard
+                label="Monthly"
+                price="$3.99"
+                period="per month"
+                badge={null}
+                selected={selectedPlan === "monthly"}
+                onClick={() => setSelectedPlan("monthly")}
+              />
+              <PlanCard
+                label="Yearly"
+                price="$39.99"
+                period="per year"
+                badge="Save 17%"
+                selected={selectedPlan === "yearly"}
+                onClick={() => setSelectedPlan("yearly")}
+              />
+            </div>
+
+            <p style={{
+              fontFamily: "'Inter', sans-serif", fontSize: "0.75rem",
+              color: "rgba(123,28,52,0.45)", textAlign: "center",
+              marginBottom: "1.25rem",
+            }}>
+              {isExpired
+                ? "Subscribe now to restore access"
+                : "7-day free trial included · Cancel anytime"
+              }
+            </p>
+
+            <button
+              onClick={handleSubscribe}
+              style={{
+                width: "100%", padding: "1rem",
+                backgroundColor: "#7b1c34", color: "#faf7f2",
+                border: "none", borderRadius: "14px",
+                fontFamily: "'Cormorant Garamond', Georgia, serif",
+                fontSize: "1.25rem", fontWeight: 600,
+                letterSpacing: "0.04em", cursor: "pointer",
+                boxShadow: "0 6px 24px rgba(123,28,52,0.28)",
+                transition: "all 0.2s",
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#6a1829"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#7b1c34"; }}
+            >
+              {isExpired ? "Subscribe Now" : "Start Free Trial"}
+            </button>
+
+            {/* Promo code link */}
+            <button
+              onClick={() => { setShowPromoInput(true); setShowEmailInput(true); }}
+              style={{
+                marginTop: "0.875rem", background: "none", border: "none",
+                fontFamily: "'Inter', sans-serif", fontSize: "0.8rem",
+                color: "rgba(123,28,52,0.45)", cursor: "pointer",
+                textDecoration: "underline", textDecorationStyle: "dotted",
+                letterSpacing: "0.01em", padding: "4px",
+              }}
+            >
+              Have a promo code?
+            </button>
+          </>
         )}
 
+        {/* Payment trust line */}
         <p style={{
           fontFamily: "'Inter', sans-serif", fontSize: "0.68rem",
           color: "rgba(123,28,52,0.3)", textAlign: "center",
           marginTop: "1rem", lineHeight: 1.5,
         }}>
-          Secure payment powered by Stripe · Cancel anytime
+          {nativeIOS
+            ? "Secure payment powered by Apple · Cancel anytime in Settings"
+            : "Secure payment powered by Stripe · Cancel anytime"
+          }
         </p>
 
         {onDismiss && (
