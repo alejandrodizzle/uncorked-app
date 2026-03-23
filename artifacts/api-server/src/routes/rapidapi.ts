@@ -134,6 +134,119 @@ async function generateTastingNotes(
   }
 }
 
+// ─── Wine-Searcher Market Prices ─────────────────────────────────────────────
+
+const WINE_SEARCHER_HOST = "wine-searcher.p.rapidapi.com";
+
+interface WineSearcherMerchant {
+  name: string;
+  price: number;
+  location: string;
+  url: string;
+}
+
+interface WineSearcherResult {
+  merchants: WineSearcherMerchant[];
+  avgPrice: number | null;
+}
+
+async function fetchMarketPrices(
+  name: string,
+  vintage: number | null,
+  apiKey: string,
+): Promise<WineSearcherResult> {
+  const query = vintage ? `${name} ${vintage}` : name;
+  const headers = {
+    "X-RapidAPI-Key": apiKey,
+    "X-RapidAPI-Host": WINE_SEARCHER_HOST,
+    Accept: "application/json",
+  };
+
+  const url = `https://${WINE_SEARCHER_HOST}/natural_language_search?q=${encodeURIComponent(query)}&location=USA&currencycode=USD&Ns=price&Nrpp=24`;
+
+  const res = await fetch(url, { headers, signal: AbortSignal.timeout(10000) });
+  if (!res.ok) return { merchants: [], avgPrice: null };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data = await res.json() as any;
+
+  const merchants: WineSearcherMerchant[] = [];
+  let priceSum = 0;
+
+  // Handle various possible response shapes from Wine-Searcher API
+  const items: unknown[] = Array.isArray(data) ? data
+    : Array.isArray(data?.search_results) ? data.search_results
+    : Array.isArray(data?.results) ? data.results
+    : Array.isArray(data?.Wine) ? data.Wine
+    : Array.isArray(data?.offers) ? data.offers
+    : [];
+
+  for (const item of items) {
+    if (!item || typeof item !== "object") continue;
+    const r = item as Record<string, unknown>;
+
+    // Try multiple field name patterns
+    const priceCandidates = [r.price, r.Price, r.price_min, r.PriceMin, r.unit_price,
+      (r.offer as Record<string,unknown>)?.price_min];
+    const rawPrice = priceCandidates.find((p) => p != null && Number(p) > 0);
+    const price = rawPrice != null ? Math.round(Number(rawPrice) * 100) / 100 : null;
+    if (price == null || price <= 0) continue;
+
+    const nameCandidates = [r.merchant, r.Merchant, r.store_name, r.store,
+      (r.store as Record<string,unknown>)?.name, (r.offer as Record<string,unknown>)?.store,
+      r.retailer, r.seller, r.shop_name, r.Shop];
+    const merchantName = nameCandidates.find((n) => n && typeof n === "string") as string | undefined;
+    if (!merchantName) continue;
+
+    const locationCandidates = [r.location, r.Location, r.city,
+      (r.store as Record<string,unknown>)?.location, r.region, r.state];
+    const location = (locationCandidates.find((l) => l && typeof l === "string") as string | undefined) ?? "USA";
+
+    const urlCandidates = [r.url, r.URL, r.link, r.href, r.offer_url,
+      (r.offer as Record<string,unknown>)?.offer_url];
+    const merchantUrl = (urlCandidates.find((u) => u && typeof u === "string") as string | undefined) ?? "";
+
+    merchants.push({ name: merchantName, price, location, url: merchantUrl });
+    priceSum += price;
+  }
+
+  merchants.sort((a, b) => a.price - b.price);
+
+  const avgPrice = merchants.length > 0
+    ? Math.round((priceSum / merchants.length) * 100) / 100
+    : data?.avg_price != null ? Number(data.avg_price)
+    : data?.average_price != null ? Number(data.average_price)
+    : null;
+
+  return { merchants, avgPrice };
+}
+
+router.post("/market/prices", async (req, res): Promise<void> => {
+  const { name, vintage } = req.body as { name?: string; vintage?: number | null };
+  if (!name) { res.status(400).json({ error: "Wine name is required" }); return; }
+  const rapidApiKey = process.env["RAPIDAPI_KEY"];
+  if (!rapidApiKey) { res.json({ merchants: [], avgPrice: null }); return; }
+  try {
+    const result = await fetchMarketPrices(name, vintage ?? null, rapidApiKey);
+    res.json(result);
+  } catch {
+    res.json({ merchants: [], avgPrice: null });
+  }
+});
+
+router.post("/ratings/critic", async (req, res): Promise<void> => {
+  const { name, vintage } = req.body as { name?: string; vintage?: number | null };
+  if (!name) { res.status(400).json({ error: "Wine name is required" }); return; }
+  const rapidApiKey = process.env["RAPIDAPI_KEY"];
+  if (!rapidApiKey) { res.json({ criticScore: null, source: "Wine-Searcher" }); return; }
+  try {
+    const result = await fetchWineExplorer(name, vintage ?? null, rapidApiKey);
+    res.json({ criticScore: result.score, source: "Wine-Searcher" });
+  } catch {
+    res.json({ criticScore: null, source: "Wine-Searcher" });
+  }
+});
+
 router.post("/ratings/rapidapi", async (req, res): Promise<void> => {
   const { name, vintage, region, grape } = req.body as {
     name?: string;

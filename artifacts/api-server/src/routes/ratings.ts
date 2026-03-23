@@ -205,6 +205,31 @@ async function searchVivinoPage(
   };
 }
 
+router.post("/ratings/cellartracker", async (req, res): Promise<void> => {
+  const { name, vintage } = req.body as { name?: string; vintage?: number | null };
+  if (!name) { res.status(400).json({ error: "Wine name is required" }); return; }
+  try {
+    const query = vintage ? `${name} ${vintage}` : name;
+    const url = `https://www.cellartracker.com/api.asp?q=wines&wine=${encodeURIComponent(query)}&fmt=json`;
+    const response = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; Uncorked/1.0)", Accept: "application/json" },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!response.ok) { res.json({ communityScore: null, reviewCount: null }); return; }
+    const data = await response.json() as Record<string, unknown>[];
+    if (!Array.isArray(data) || data.length === 0) { res.json({ communityScore: null, reviewCount: null }); return; }
+    const first = data[0];
+    const rawScore = first?.CT != null ? Number(first.CT) : null;
+    const rawCount = first?.Notes != null ? Number(first.Notes) : null;
+    res.json({
+      communityScore: rawScore != null && rawScore > 0 ? rawScore : null,
+      reviewCount: rawCount != null && rawCount > 0 ? rawCount : null,
+    });
+  } catch {
+    res.json({ communityScore: null, reviewCount: null });
+  }
+});
+
 router.post("/ratings/vivino", async (req, res): Promise<void> => {
   const { name, vintage } = req.body as {
     name?: string;

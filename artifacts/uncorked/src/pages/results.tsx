@@ -20,6 +20,8 @@ type RetailPrice = {
   priceRange: string | null;
 };
 
+type CriticScore = { criticScore: number | null };
+type CellarScore = { communityScore: number | null; reviewCount: number | null };
 type FetchStatus = "loading" | "done";
 type FilterType = "all" | "90plus" | "best-value" | "top-picks";
 
@@ -36,6 +38,10 @@ export default function ResultsScreen({ wines, savedWines, onSaveToggle }: Props
   const [aiStatus, setAiStatus] = useState<Record<number, FetchStatus>>({});
   const [retailPrices, setRetailPrices] = useState<Record<number, RetailPrice>>({});
   const [retailStatus, setRetailStatus] = useState<Record<number, FetchStatus>>({});
+  const [criticScores, setCriticScores] = useState<Record<number, CriticScore>>({});
+  const [criticStatus, setCriticStatus] = useState<Record<number, FetchStatus>>({});
+  const [cellarScores, setCellarScores] = useState<Record<number, CellarScore>>({});
+  const [cellarStatus, setCellarStatus] = useState<Record<number, FetchStatus>>({});
   const [listInsight, setListInsight] = useState<string | null>(null);
   const [insightStatus, setInsightStatus] = useState<"idle" | "loading" | "done">("idle");
   const [activeFilter, setActiveFilter] = useState<FilterType>("all");
@@ -52,6 +58,10 @@ export default function ResultsScreen({ wines, savedWines, onSaveToggle }: Props
     setAiAnalyses({});
     setRetailPrices({});
     setRetailStatus(initStatus);
+    setCriticScores({});
+    setCriticStatus(initStatus);
+    setCellarScores({});
+    setCellarStatus(initStatus);
     setListInsight(null);
     setInsightStatus("idle");
     insightFired.current = false;
@@ -101,6 +111,36 @@ export default function ResultsScreen({ wines, savedWines, onSaveToggle }: Props
         .catch(() => {
           setRetailPrices((prev) => ({ ...prev, [i]: { avgRetailPrice: null, priceRange: null } }));
           setRetailStatus((prev) => ({ ...prev, [i]: "done" }));
+        });
+
+      fetch(apiUrl("api/ratings/critic"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: wine.name, vintage: wine.vintage }),
+      })
+        .then((r) => r.json())
+        .then((data: CriticScore) => {
+          setCriticScores((prev) => ({ ...prev, [i]: data }));
+          setCriticStatus((prev) => ({ ...prev, [i]: "done" }));
+        })
+        .catch(() => {
+          setCriticScores((prev) => ({ ...prev, [i]: { criticScore: null } }));
+          setCriticStatus((prev) => ({ ...prev, [i]: "done" }));
+        });
+
+      fetch(apiUrl("api/ratings/cellartracker"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: wine.name, vintage: wine.vintage }),
+      })
+        .then((r) => r.json())
+        .then((data: CellarScore) => {
+          setCellarScores((prev) => ({ ...prev, [i]: data }));
+          setCellarStatus((prev) => ({ ...prev, [i]: "done" }));
+        })
+        .catch(() => {
+          setCellarScores((prev) => ({ ...prev, [i]: { communityScore: null, reviewCount: null } }));
+          setCellarStatus((prev) => ({ ...prev, [i]: "done" }));
         });
     });
   }, [wines]);
@@ -284,6 +324,10 @@ export default function ResultsScreen({ wines, savedWines, onSaveToggle }: Props
                 aiStatus={aiStatus[i] ?? "loading"}
                 retailPrice={retailPrices[i] ?? null}
                 retailStatus={retailStatus[i] ?? "loading"}
+                criticScore={criticScores[i] ?? null}
+                criticStatus={criticStatus[i] ?? "loading"}
+                cellarScore={cellarScores[i] ?? null}
+                cellarStatus={cellarStatus[i] ?? "loading"}
                 isSaved={isSaved(wines[i])}
                 onSaveToggle={() => onSaveToggle(wines[i])}
               />
@@ -341,7 +385,8 @@ function InsightBanner({ insight, status }: { insight: string | null; status: "l
 // ─── Wine Card ────────────────────────────────────────────────────────────────
 
 function WineCard({
-  wine, index, vivinoRating, vivinoStatus, aiAnalysis, aiStatus, retailPrice, retailStatus, isSaved, onSaveToggle,
+  wine, index, vivinoRating, vivinoStatus, aiAnalysis, aiStatus, retailPrice, retailStatus,
+  criticScore, criticStatus, cellarScore, cellarStatus, isSaved, onSaveToggle,
 }: {
   wine: Wine;
   index: number;
@@ -351,6 +396,10 @@ function WineCard({
   aiStatus: FetchStatus;
   retailPrice: RetailPrice | null;
   retailStatus: FetchStatus;
+  criticScore: CriticScore | null;
+  criticStatus: FetchStatus;
+  cellarScore: CellarScore | null;
+  cellarStatus: FetchStatus;
   isSaved: boolean;
   onSaveToggle: () => void;
 }) {
@@ -469,6 +518,43 @@ function WineCard({
           {aiStatus === "loading" ? <AIScoreSkeleton /> :
             aiAnalysis?.consensusScore != null ? <AIScoreBadge score={aiAnalysis.consensusScore} /> : null}
         </div>
+
+        {/* Critic + Community scores row */}
+        {(criticStatus === "loading" || criticScore?.criticScore != null || cellarStatus === "loading" || cellarScore?.communityScore != null) && (
+          <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+            {criticStatus === "loading" ? (
+              <Shimmer width={88} height={13} radius={4} delay="0.1s" />
+            ) : criticScore?.criticScore != null ? (
+              <div className="flex items-center gap-1">
+                <span style={{ fontSize: "0.58rem", fontWeight: 700, color: "#c9a84c", fontFamily: "'Inter', sans-serif", letterSpacing: "0.05em" }}>
+                  🏆 CRITIC
+                </span>
+                <span style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: "1.05rem", fontWeight: 700, color: "#7b1c34", lineHeight: 1 }}>
+                  {criticScore.criticScore}
+                </span>
+                <span style={{ fontSize: "0.58rem", color: "rgba(123,28,52,0.4)", fontFamily: "'Inter', sans-serif" }}>/100</span>
+              </div>
+            ) : null}
+            {cellarStatus === "loading" ? (
+              <Shimmer width={100} height={13} radius={4} delay="0.2s" />
+            ) : cellarScore?.communityScore != null ? (
+              <div className="flex items-center gap-1">
+                <span style={{ fontSize: "0.58rem", fontWeight: 700, color: "#5a7a5a", fontFamily: "'Inter', sans-serif", letterSpacing: "0.05em" }}>
+                  👥 COMMUNITY
+                </span>
+                <span style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: "1.05rem", fontWeight: 700, color: "#7b1c34", lineHeight: 1 }}>
+                  {cellarScore.communityScore}
+                </span>
+                <span style={{ fontSize: "0.58rem", color: "rgba(123,28,52,0.4)", fontFamily: "'Inter', sans-serif" }}>/100</span>
+                {cellarScore.reviewCount != null && (
+                  <span style={{ fontSize: "0.58rem", color: "rgba(123,28,52,0.35)", fontFamily: "'Inter', sans-serif" }}>
+                    ({cellarScore.reviewCount.toLocaleString()} reviews)
+                  </span>
+                )}
+              </div>
+            ) : null}
+          </div>
+        )}
 
         {/* Value badge + markup badge + notes toggle */}
         <div className="flex items-center justify-between mt-2">

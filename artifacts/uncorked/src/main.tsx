@@ -23,7 +23,8 @@ async function initCapacitor() {
   // ── RevenueCat — iOS only ────────────────────────────────────────────────────
   if (w.Capacitor?.getPlatform?.() === "ios") {
     try {
-      const { Purchases, LOG_LEVEL } = await import("@revenuecat/purchases-capacitor");
+      const rcPkg = "@revenuecat/purchases" + "-capacitor";
+      const { Purchases, LOG_LEVEL } = await import(/* @vite-ignore */ rcPkg);
       const apiKey = import.meta.env.VITE_REVENUECAT_API_KEY as string;
       if (apiKey) {
         await Purchases.setLogLevel({ level: LOG_LEVEL.ERROR });

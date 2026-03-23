@@ -14,6 +14,12 @@ type WineDetailAI = {
   valueLabel: "Great Value" | "Fair Price" | "Overpriced" | null;
 };
 
+type CriticRating = { criticScore: number | null; source: string };
+type CellarRating = { communityScore: number | null; reviewCount: number | null };
+
+type Merchant = { name: string; price: number; location: string; url: string };
+type MarketPriceData = { merchants: Merchant[]; avgPrice: number | null };
+
 type TriedEntry = { rating: number; notes: string; triedAt: number };
 
 type Props = {
@@ -28,8 +34,15 @@ export default function WineDetailScreen({ wine, savedWines, onSaveToggle, onBac
   const [vivinoRating, setVivinoRating] = useState<{ rating: number | null; ratingsCount: number | null } | null>(
     wine.vivinoRating != null ? { rating: wine.vivinoRating, ratingsCount: wine.vivinoRatingsCount } : null
   );
+  const [criticRating, setCriticRating] = useState<CriticRating | null>(null);
+  const [cellarRating, setCellarRating] = useState<CellarRating | null>(null);
   const [loadingAI, setLoadingAI] = useState(true);
   const [loadingVivino, setLoadingVivino] = useState(wine.vivinoRating == null);
+  const [loadingCritic, setLoadingCritic] = useState(true);
+  const [loadingCellar, setLoadingCellar] = useState(true);
+  const [marketData, setMarketData] = useState<MarketPriceData | null>(null);
+  const [loadingMarket, setLoadingMarket] = useState(true);
+  const [showMarket, setShowMarket] = useState(false);
   const [showTriedModal, setShowTriedModal] = useState(false);
   const [showBuyOnline, setShowBuyOnline] = useState(false);
   const [triedEntry, setTriedEntry] = useState<TriedEntry | null>(() => {
@@ -64,6 +77,36 @@ export default function WineDetailScreen({ wine, savedWines, onSaveToggle, onBac
         .then((d) => { setVivinoRating({ rating: d.rating, ratingsCount: d.ratingsCount }); setLoadingVivino(false); })
         .catch(() => setLoadingVivino(false));
     }
+
+    // Fetch critic score (Wine-Searcher via RapidAPI)
+    fetch(apiUrl("api/ratings/critic"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: wine.name, vintage: wine.vintage }),
+    })
+      .then((r) => r.json())
+      .then((d: CriticRating) => { setCriticRating(d); setLoadingCritic(false); })
+      .catch(() => { setCriticRating({ criticScore: null, source: "Wine-Searcher" }); setLoadingCritic(false); });
+
+    // Fetch CellarTracker community score
+    fetch(apiUrl("api/ratings/cellartracker"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: wine.name, vintage: wine.vintage }),
+    })
+      .then((r) => r.json())
+      .then((d: CellarRating) => { setCellarRating(d); setLoadingCellar(false); })
+      .catch(() => { setCellarRating({ communityScore: null, reviewCount: null }); setLoadingCellar(false); });
+
+    // Fetch Wine-Searcher market prices
+    fetch(apiUrl("api/market/prices"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: wine.name, vintage: wine.vintage }),
+    })
+      .then((r) => r.json())
+      .then((d: MarketPriceData) => { setMarketData(d); setLoadingMarket(false); })
+      .catch(() => { setMarketData({ merchants: [], avgPrice: null }); setLoadingMarket(false); });
   }, []);
 
   const handleSaveTried = (rating: number, notes: string) => {
@@ -152,79 +195,46 @@ export default function WineDetailScreen({ wine, savedWines, onSaveToggle, onBac
       {/* Scores cluster */}
       <div className="px-5 py-5">
         <SectionLabel>Ratings</SectionLabel>
-        <div className="flex items-center gap-4 flex-wrap">
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px" }}>
 
           {/* Vivino */}
-          <div style={{
-            flex: 1, minWidth: "120px", padding: "1rem",
-            backgroundColor: "#fff", borderRadius: "14px",
-            border: "1px solid rgba(123,28,52,0.08)",
-            boxShadow: "0 2px 10px rgba(123,28,52,0.05)",
-            textAlign: "center",
-          }}>
-            <div className="flex items-center justify-center gap-1 mb-1">
-              <div style={{ backgroundColor: "#AC1539", borderRadius: "3px", padding: "1px 5px" }}>
-                <span style={{ fontSize: "0.55rem", fontWeight: 700, color: "#fff", fontFamily: "'Inter', sans-serif", letterSpacing: "0.04em" }}>
-                  VIVINO
-                </span>
-              </div>
-            </div>
-            {loadingVivino ? (
-              <Shimmer width="60%" height={28} radius={6} />
-            ) : vivinoRating?.rating != null ? (
-              <>
-                <div style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: "2rem", fontWeight: 700, color: "#7b1c34", lineHeight: 1 }}>
-                  {vivinoRating.rating.toFixed(1)}
-                </div>
-                <div style={{ fontSize: "0.65rem", color: "rgba(123,28,52,0.4)", fontFamily: "'Inter', sans-serif", marginTop: "2px" }}>
-                  /5 community
-                </div>
-              </>
-            ) : (
-              <div style={{ fontSize: "0.75rem", color: "rgba(123,28,52,0.35)", fontStyle: "italic", fontFamily: "'Inter', sans-serif" }}>
-                Not rated
-              </div>
-            )}
-          </div>
+          <RatingCard
+            label="🍷 VIVINO"
+            labelColor="#AC1539"
+            loading={loadingVivino}
+            score={vivinoRating?.rating != null ? vivinoRating.rating.toFixed(1) : null}
+            suffix="/5 ★"
+            subtitle={vivinoRating?.ratingsCount != null
+              ? `${vivinoRating.ratingsCount >= 1000 ? `${(vivinoRating.ratingsCount / 1000).toFixed(1)}k` : vivinoRating.ratingsCount} ratings`
+              : "community"}
+            na="Not rated"
+          />
 
-          {/* AI Est. */}
-          <div style={{
-            flex: 1, minWidth: "120px", padding: "1rem",
-            backgroundColor: "#fff", borderRadius: "14px",
-            border: "1px solid rgba(201,168,76,0.25)",
-            boxShadow: "0 2px 10px rgba(123,28,52,0.05)",
-            textAlign: "center",
-          }}>
-            <div className="flex items-center justify-center gap-1 mb-1">
-              <svg width="9" height="9" viewBox="0 0 24 24" fill="#c9a84c">
-                <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z" />
-              </svg>
-              <span style={{ fontSize: "0.55rem", fontWeight: 700, color: "#c9a84c", fontFamily: "'Inter', sans-serif", letterSpacing: "0.04em" }}>
-                AI EST.
-              </span>
-            </div>
-            {loadingAI ? (
-              <Shimmer width="60%" height={28} radius={6} />
-            ) : aiDetail?.consensusScore != null ? (
-              <>
-                <div style={{
-                  fontFamily: "'Cormorant Garamond', Georgia, serif",
-                  fontSize: "2rem", fontWeight: 700,
-                  color: aiDetail.consensusScore >= 90 ? "#c9a84c" : "#7b1c34",
-                  lineHeight: 1,
-                }}>
-                  {aiDetail.consensusScore}
-                </div>
-                <div style={{ fontSize: "0.65rem", color: "rgba(123,28,52,0.4)", fontFamily: "'Inter', sans-serif", marginTop: "2px" }}>
-                  /100 critic est.
-                </div>
-              </>
-            ) : (
-              <div style={{ fontSize: "0.75rem", color: "rgba(123,28,52,0.35)", fontStyle: "italic", fontFamily: "'Inter', sans-serif" }}>
-                Estimating...
-              </div>
-            )}
-          </div>
+          {/* Critic Score — Wine-Searcher */}
+          <RatingCard
+            label="🏆 CRITIC"
+            labelColor="#c9a84c"
+            loading={loadingCritic}
+            score={criticRating?.criticScore != null ? String(criticRating.criticScore) : null}
+            suffix="/100"
+            subtitle="Aggregated critics"
+            tooltip="Aggregated from leading wine critics worldwide via Wine-Searcher"
+            na="N/A"
+          />
+
+          {/* Community Score — CellarTracker */}
+          <RatingCard
+            label="👥 COMMUNITY"
+            labelColor="#5a7a5a"
+            loading={loadingCellar}
+            score={cellarRating?.communityScore != null ? String(cellarRating.communityScore) : null}
+            suffix="/100"
+            subtitle={cellarRating?.reviewCount != null
+              ? `${cellarRating.reviewCount.toLocaleString()} reviews`
+              : "CellarTracker"}
+            tooltip="Based on community reviews from CellarTracker"
+            na="N/A"
+          />
         </div>
 
         {/* Value + retail price */}
@@ -243,6 +253,27 @@ export default function WineDetailScreen({ wine, savedWines, onSaveToggle, onBac
             )}
           </div>
         )}
+
+        {/* Wine-Searcher avg market price */}
+        <div style={{ marginTop: "0.75rem" }}>
+          {loadingMarket ? (
+            <Shimmer width={160} height={13} radius={4} />
+          ) : marketData?.avgPrice != null ? (
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+              </svg>
+              <span style={{ fontSize: "0.75rem", color: "rgba(123,28,52,0.6)", fontFamily: "'Inter', sans-serif" }}>
+                Avg. market price: <strong style={{ color: "#7b1c34" }}>${marketData.avgPrice.toFixed(2)}</strong>
+              </span>
+              {marketData.merchants.length > 0 && (
+                <span style={{ fontSize: "0.65rem", color: "rgba(123,28,52,0.38)", fontFamily: "'Inter', sans-serif" }}>
+                  · {marketData.merchants.length} {marketData.merchants.length === 1 ? "retailer" : "retailers"}
+                </span>
+              )}
+            </div>
+          ) : marketData?.merchants.length === 0 && !loadingMarket ? null : null}
+        </div>
       </div>
 
       <Divider />
@@ -360,6 +391,38 @@ export default function WineDetailScreen({ wine, savedWines, onSaveToggle, onBac
 
       {/* Action buttons */}
       <div className="px-5 py-5 flex flex-col gap-3" style={{ paddingBottom: "2.5rem" }}>
+
+        {/* Buy This Wine — Wine-Searcher market prices */}
+        <button
+          onClick={() => setShowMarket(true)}
+          style={{
+            width: "100%", padding: "1rem",
+            borderRadius: "14px", cursor: "pointer",
+            fontFamily: "'Cormorant Garamond', Georgia, serif",
+            fontSize: "1.15rem", fontWeight: 600, letterSpacing: "0.03em",
+            background: "linear-gradient(135deg, #7b1c34 0%, #5a1225 100%)",
+            color: "#faf7f2",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+            border: "none",
+            boxShadow: "0 4px 16px rgba(123,28,52,0.3)",
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" />
+            <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+          </svg>
+          🛒 Buy This Wine
+          {!loadingMarket && marketData && marketData.merchants.length > 0 && (
+            <span style={{
+              fontSize: "0.7rem", fontFamily: "'Inter', sans-serif", fontWeight: 600,
+              backgroundColor: "rgba(201,168,76,0.25)", borderRadius: "8px",
+              padding: "2px 8px", color: "#c9a84c",
+            }}>
+              from ${marketData.merchants[0].price.toFixed(2)}
+            </span>
+          )}
+        </button>
+
         <button
           onClick={() => setShowBuyOnline(true)}
           style={{
@@ -377,7 +440,7 @@ export default function WineDetailScreen({ wine, savedWines, onSaveToggle, onBac
             <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" /><line x1="3" y1="6" x2="21" y2="6" />
             <path d="M16 10a4 4 0 01-8 0" />
           </svg>
-          Buy Online
+          Search Wine Online
         </button>
 
         <button
@@ -426,6 +489,16 @@ export default function WineDetailScreen({ wine, savedWines, onSaveToggle, onBac
           )}
         </button>
       </div>
+
+      {showMarket && (
+        <MerchantSheet
+          name={wine.name}
+          vintage={wine.vintage ?? null}
+          loading={loadingMarket}
+          data={marketData}
+          onClose={() => setShowMarket(false)}
+        />
+      )}
 
       {showTriedModal && (
         <TriedModal
@@ -530,7 +603,312 @@ function TriedModal({
   );
 }
 
+// ─── Merchant Sheet ───────────────────────────────────────────────────────────
+
+function MerchantSheet({
+  name, vintage, loading, data, onClose,
+}: {
+  name: string;
+  vintage: number | null;
+  loading: boolean;
+  data: MarketPriceData | null;
+  onClose: () => void;
+}) {
+  const merchants = data?.merchants ?? [];
+  const cheapest = merchants[0];
+  const mostExpensive = merchants[merchants.length - 1];
+  const savingsVsHighest = cheapest && mostExpensive && mostExpensive.price > 0 && cheapest !== mostExpensive
+    ? ((mostExpensive.price - cheapest.price) / mostExpensive.price) > 0.2
+      ? (mostExpensive.price - cheapest.price).toFixed(2)
+      : null
+    : null;
+
+  return (
+    <div
+      style={{
+        position: "fixed", inset: 0, zIndex: 300,
+        backgroundColor: "rgba(40,8,18,0.65)",
+        display: "flex", alignItems: "flex-end", justifyContent: "center",
+      }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{
+        width: "100%", maxWidth: "430px",
+        backgroundColor: "#faf7f2", borderRadius: "24px 24px 0 0",
+        maxHeight: "88svh", display: "flex", flexDirection: "column",
+        boxShadow: "0 -8px 40px rgba(40,8,18,0.25)",
+      }}>
+        {/* Handle + header */}
+        <div style={{ padding: "1.25rem 1.5rem 1rem", flexShrink: 0 }}>
+          <div style={{ width: "36px", height: "4px", borderRadius: "2px", backgroundColor: "rgba(123,28,52,0.2)", margin: "0 auto 1.25rem" }} />
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div>
+              <h2 style={{
+                fontFamily: "'Cormorant Garamond', Georgia, serif",
+                fontSize: "1.4rem", fontWeight: 600, color: "#7b1c34", margin: 0, lineHeight: 1.2,
+              }}>
+                🛒 Buy This Wine
+              </h2>
+              <p style={{
+                fontSize: "0.72rem", color: "rgba(123,28,52,0.5)",
+                fontFamily: "'Inter', sans-serif", margin: "0.25rem 0 0",
+              }}>
+                {name}{vintage ? ` ${vintage}` : ""}
+              </p>
+            </div>
+            <button onClick={onClose} style={{
+              background: "rgba(123,28,52,0.07)", border: "none", cursor: "pointer",
+              borderRadius: "10px", width: "34px", height: "34px",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7b1c34" strokeWidth="2.5" strokeLinecap="round">
+                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Summary row */}
+          {!loading && merchants.length > 0 && (
+            <div style={{
+              marginTop: "0.875rem", padding: "0.75rem 1rem",
+              backgroundColor: "rgba(123,28,52,0.05)", borderRadius: "12px",
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+            }}>
+              <span style={{ fontSize: "0.78rem", color: "#7b1c34", fontFamily: "'Inter', sans-serif", fontWeight: 600 }}>
+                Found at {merchants.length} {merchants.length === 1 ? "retailer" : "retailers"}
+              </span>
+              {data?.avgPrice != null && (
+                <span style={{ fontSize: "0.72rem", color: "rgba(123,28,52,0.55)", fontFamily: "'Inter', sans-serif" }}>
+                  Avg. ${data.avgPrice.toFixed(2)}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Scrollable merchant list */}
+        <div style={{ overflowY: "auto", flex: 1, paddingBottom: "2rem" }}>
+          {loading ? (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "3rem 1.5rem", gap: "1rem" }}>
+              <div style={{
+                width: "36px", height: "36px", border: "3px solid rgba(123,28,52,0.15)",
+                borderTop: "3px solid #7b1c34", borderRadius: "50%",
+                animation: "spin 0.8s linear infinite",
+              }} />
+              <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+              <p style={{ fontSize: "0.8rem", color: "rgba(123,28,52,0.5)", fontFamily: "'Inter', sans-serif", margin: 0 }}>
+                Finding the best prices…
+              </p>
+            </div>
+          ) : merchants.length === 0 ? (
+            <div style={{ padding: "2.5rem 1.5rem", textAlign: "center" }}>
+              <div style={{ fontSize: "2.5rem", marginBottom: "0.75rem" }}>🔍</div>
+              <p style={{
+                fontFamily: "'Cormorant Garamond', Georgia, serif",
+                fontSize: "1.15rem", color: "#7b1c34", marginBottom: "0.5rem",
+              }}>
+                No online retailers found
+              </p>
+              <p style={{ fontSize: "0.78rem", color: "rgba(123,28,52,0.5)", fontFamily: "'Inter', sans-serif", marginBottom: "1.25rem", lineHeight: 1.5 }}>
+                No online retailers found for this wine.
+              </p>
+              <a
+                href={`https://www.wine-searcher.com/find/${encodeURIComponent(vintage ? `${name} ${vintage}` : name)}`}
+                target="_blank" rel="noopener noreferrer"
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: "6px",
+                  padding: "10px 20px", borderRadius: "12px",
+                  backgroundColor: "#7b1c34", color: "#faf7f2",
+                  fontSize: "0.82rem", fontFamily: "'Inter', sans-serif", fontWeight: 600,
+                  textDecoration: "none", letterSpacing: "0.02em",
+                }}
+              >
+                Search Wine-Searcher.com
+                <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <path d="M7 1h4v4M11 1L5 7M3 3H1v8h8V9" />
+                </svg>
+              </a>
+            </div>
+          ) : (
+            <div style={{ padding: "0 1.5rem" }}>
+              {merchants.map((m, idx) => (
+                <div key={idx}>
+                  {idx > 0 && <div style={{ height: "1px", backgroundColor: "rgba(123,28,52,0.06)" }} />}
+                  <div style={{ padding: "1rem 0", display: "flex", alignItems: "center", gap: "0.75rem" }}>
+
+                    {/* Price column */}
+                    <div style={{ minWidth: "64px", textAlign: "right" }}>
+                      <div style={{
+                        fontFamily: "'Cormorant Garamond', Georgia, serif",
+                        fontSize: "1.35rem", fontWeight: 700,
+                        color: idx === 0 ? "#1a7a1a" : "#7b1c34", lineHeight: 1,
+                      }}>
+                        ${m.price.toFixed(2)}
+                      </div>
+                    </div>
+
+                    {/* Details column */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                        <span style={{
+                          fontFamily: "'Inter', sans-serif", fontSize: "0.85rem",
+                          fontWeight: 600, color: "#3c0f19",
+                          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                        }}>
+                          {m.name}
+                        </span>
+                        {idx === 0 && (
+                          <span style={{
+                            fontSize: "0.58rem", fontWeight: 700, color: "#1a7a1a",
+                            backgroundColor: "rgba(34,139,34,0.1)", border: "1px solid rgba(34,139,34,0.25)",
+                            borderRadius: "6px", padding: "1px 6px",
+                            fontFamily: "'Inter', sans-serif", letterSpacing: "0.04em",
+                          }}>
+                            BEST PRICE
+                          </span>
+                        )}
+                        {idx === 0 && savingsVsHighest != null && (
+                          <span style={{
+                            fontSize: "0.58rem", fontWeight: 600, color: "#1a7a1a",
+                            fontFamily: "'Inter', sans-serif",
+                          }}>
+                            · Save ${savingsVsHighest} vs highest
+                          </span>
+                        )}
+                      </div>
+                      <p style={{
+                        fontSize: "0.7rem", color: "rgba(123,28,52,0.45)",
+                        fontFamily: "'Inter', sans-serif", margin: "2px 0 0",
+                        display: "flex", alignItems: "center", gap: "4px",
+                      }}>
+                        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
+                        </svg>
+                        {m.location}
+                      </p>
+                    </div>
+
+                    {/* Visit button */}
+                    {m.url ? (
+                      <a
+                        href={m.url} target="_blank" rel="noopener noreferrer"
+                        style={{
+                          flexShrink: 0, display: "inline-flex", alignItems: "center", gap: "4px",
+                          padding: "7px 12px", borderRadius: "10px",
+                          border: "1.5px solid rgba(123,28,52,0.2)",
+                          backgroundColor: "rgba(123,28,52,0.04)",
+                          textDecoration: "none",
+                          fontSize: "0.7rem", fontWeight: 700,
+                          color: "#7b1c34", fontFamily: "'Inter', sans-serif",
+                          letterSpacing: "0.02em",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        Visit Store
+                        <svg width="8" height="8" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                          <path d="M7 1h4v4M11 1L5 7M3 3H1v8h8V9" />
+                        </svg>
+                      </a>
+                    ) : (
+                      <a
+                        href={`https://www.wine-searcher.com/find/${encodeURIComponent(vintage ? `${name} ${vintage}` : name)}`}
+                        target="_blank" rel="noopener noreferrer"
+                        style={{
+                          flexShrink: 0, display: "inline-flex", alignItems: "center", gap: "4px",
+                          padding: "7px 12px", borderRadius: "10px",
+                          border: "1.5px solid rgba(123,28,52,0.2)",
+                          backgroundColor: "rgba(123,28,52,0.04)",
+                          textDecoration: "none",
+                          fontSize: "0.7rem", fontWeight: 700,
+                          color: "#7b1c34", fontFamily: "'Inter', sans-serif",
+                          letterSpacing: "0.02em",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        Search →
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
+
+function RatingCard({
+  label, labelColor, loading, score, suffix, subtitle, tooltip, na,
+}: {
+  label: string; labelColor: string; loading: boolean;
+  score: string | null; suffix: string; subtitle: string;
+  tooltip?: string; na: string;
+}) {
+  const [showTip, setShowTip] = useState(false);
+  return (
+    <div style={{
+      padding: "0.75rem 0.5rem", backgroundColor: "#fff", borderRadius: "12px",
+      border: "1px solid rgba(123,28,52,0.09)", boxShadow: "0 2px 8px rgba(123,28,52,0.05)",
+      textAlign: "center", position: "relative",
+    }}>
+      <div style={{
+        fontSize: "0.5rem", fontWeight: 700, color: labelColor,
+        fontFamily: "'Inter', sans-serif", letterSpacing: "0.04em",
+        marginBottom: "0.35rem", lineHeight: 1.2,
+        display: "flex", alignItems: "center", justifyContent: "center", gap: "2px",
+      }}>
+        {label}
+        {tooltip && (
+          <button
+            onClick={() => setShowTip((p) => !p)}
+            style={{ background: "none", border: "none", padding: 0, cursor: "pointer", lineHeight: 1, marginLeft: "2px" }}
+          >
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke={labelColor} strokeWidth="2.5" strokeLinecap="round">
+              <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+          </button>
+        )}
+      </div>
+      {showTip && tooltip && (
+        <div style={{
+          position: "absolute", bottom: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)",
+          backgroundColor: "#3c0f19", color: "#faf7f2", borderRadius: "8px",
+          padding: "6px 10px", fontSize: "0.6rem", fontFamily: "'Inter', sans-serif",
+          lineHeight: 1.4, width: "180px", zIndex: 10, textAlign: "left",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
+        }}>
+          {tooltip}
+        </div>
+      )}
+      {loading ? (
+        <Shimmer width="60%" height={24} radius={5} />
+      ) : score != null ? (
+        <>
+          <div style={{
+            fontFamily: "'Cormorant Garamond', Georgia, serif",
+            fontSize: "1.6rem", fontWeight: 700, color: "#7b1c34", lineHeight: 1,
+          }}>
+            {score}
+          </div>
+          <div style={{ fontSize: "0.6rem", color: "rgba(123,28,52,0.38)", fontFamily: "'Inter', sans-serif", marginTop: "2px" }}>
+            {suffix}
+          </div>
+          <div style={{ fontSize: "0.55rem", color: "rgba(123,28,52,0.35)", fontFamily: "'Inter', sans-serif", marginTop: "2px", lineHeight: 1.3 }}>
+            {subtitle}
+          </div>
+        </>
+      ) : (
+        <div style={{ fontSize: "0.7rem", color: "rgba(123,28,52,0.32)", fontStyle: "italic", fontFamily: "'Inter', sans-serif" }}>
+          {na}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
