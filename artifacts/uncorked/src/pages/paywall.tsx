@@ -48,10 +48,10 @@ async function purchaseWithStoreKit(productId: string): Promise<{ success: boole
     }
 
     const result = await Purchases.purchasePackage({ aPackage: pkg });
-    if (result?.customerInfo?.entitlements?.active?.premium) {
+    if (result?.customerInfo?.entitlements?.active?.["Uncorked Pro"]) {
       return { success: true };
     }
-    return { success: true }; // purchase completed even if entitlement key differs
+    return { success: true }; // purchase completed even if entitlement check differs
   } catch (err: any) {
     if (err?.code === "1" || err?.message?.includes("cancel")) {
       return { success: false, error: "Purchase cancelled." };
@@ -67,7 +67,7 @@ async function restoreStoreKitPurchases(): Promise<{ success: boolean; error?: s
     const Purchases = Capacitor?.Plugins?.Purchases;
     if (!Purchases) return { success: false, error: "Restore not available." };
     const result = await Purchases.restorePurchases();
-    const hasActive = result?.customerInfo?.entitlements?.active?.premium;
+    const hasActive = result?.customerInfo?.entitlements?.active?.["Uncorked Pro"];
     return { success: !!hasActive, error: hasActive ? undefined : "No active subscription found." };
   } catch (err: any) {
     return { success: false, error: err?.message || "Restore failed. Please try again." };
