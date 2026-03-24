@@ -118,8 +118,20 @@ export default function PrivacyPolicy() {
               community data. Only wine names are transmitted — no personal data.
             </li>
             <li style={liStyle}>
-              <strong>Stripe</strong> — handles all payment processing. We never see or
-              store your full card number. See{" "}
+              <strong>CellarTracker</strong> — used to retrieve community tasting notes and
+              ratings. Only wine names are transmitted — no personal data.
+            </li>
+            <li style={liStyle}>
+              <strong>RevenueCat</strong> — manages in-app subscriptions and entitlements
+              on iOS. RevenueCat receives an anonymous app user ID and purchase receipts
+              to verify subscription status. See{" "}
+              <a href="https://www.revenuecat.com/privacy" style={linkStyle} target="_blank" rel="noopener noreferrer">
+                RevenueCat's Privacy Policy
+              </a>.
+            </li>
+            <li style={liStyle}>
+              <strong>Stripe</strong> — handles all payment processing on web. We never see
+              or store your full card number. See{" "}
               <a href="https://stripe.com/privacy" style={linkStyle} target="_blank" rel="noopener noreferrer">
                 Stripe's Privacy Policy
               </a>.
