@@ -6,6 +6,7 @@ import rapidapiRouter from "./rapidapi";
 import aiRouter from "./ai";
 import searchRouter from "./search";
 import stripeRouter from "./stripe";
+import deleteAccountRouter from "./deleteAccount";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(rapidapiRouter);
 router.use(aiRouter);
 router.use(searchRouter);
 router.use(stripeRouter);
+router.use(deleteAccountRouter);
 
 export default router;
