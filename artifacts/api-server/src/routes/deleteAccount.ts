@@ -34,7 +34,7 @@ router.post("/api/delete-account-request", async (req, res) => {
           <p style="background:#fff8e1; border-left:4px solid #f59e0b; padding:12px 16px; border-radius:4px;">
             <strong>Important:</strong> If you have an active subscription, please also cancel it through the App Store or Google Play to stop future charges.
           </p>
-          <p>If you did not make this request, contact us at aarenas1@gmail.com immediately.</p>
+          <p>If you did not make this request, contact us at wine.uncorked.app@gmail.com immediately.</p>
           <p style="color:#999; font-size:12px;">Request submitted: ${timestamp}</p>
         </div>
       `,

@@ -52,8 +52,8 @@ export default function PrivacyPolicy() {
 
         <p style={metaStyle}>
           Last updated: March 2025 &nbsp;·&nbsp; Developer: Alejandro Arenas &nbsp;·&nbsp;{" "}
-          <a href="mailto:aarenas1@gmail.com" style={{ color: "#7b1c34", textDecoration: "none" }}>
-            aarenas1@gmail.com
+          <a href="mailto:wine.uncorked.app@gmail.com" style={{ color: "#7b1c34", textDecoration: "none" }}>
+            wine.uncorked.app@gmail.com
           </a>
         </p>
 
@@ -192,8 +192,8 @@ export default function PrivacyPolicy() {
           }}>
             <p style={{ margin: 0, fontSize: "0.9rem", color: "#3c0f19", lineHeight: 1.6 }}>
               <strong>Alejandro Arenas</strong><br />
-              <a href="mailto:aarenas1@gmail.com" style={{ color: "#7b1c34", textDecoration: "none" }}>
-                aarenas1@gmail.com
+              <a href="mailto:wine.uncorked.app@gmail.com" style={{ color: "#7b1c34", textDecoration: "none" }}>
+                wine.uncorked.app@gmail.com
               </a>
             </p>
           </div>
