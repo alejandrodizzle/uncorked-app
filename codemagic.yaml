@@ -74,7 +74,9 @@ workflows:
       - name: Set build number
         script: |
           cd artifacts/uncorked/ios/App
-          agvtool new-version -all $((6 + $BUILD_NUMBER))
+          BUILD_NUM=$(date +%Y%m%d%H%M)
+          agvtool new-version -all $BUILD_NUM
+          echo "Build number set to: $BUILD_NUM"
       - name: Install pods
         script: |
           cd artifacts/uncorked/ios/App && pod install
