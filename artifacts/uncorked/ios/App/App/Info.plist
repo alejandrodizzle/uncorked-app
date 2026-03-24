@@ -47,5 +47,11 @@
         </array>
         <key>UIViewControllerBasedStatusBarAppearance</key>
         <true/>
+        <key>NSCameraUsageDescription</key>
+        <string>Uncorked uses your camera to scan wine labels and restaurant menus to identify wines instantly.</string>
+        <key>NSPhotoLibraryUsageDescription</key>
+        <string>Uncorked accesses your photo library so you can scan wine labels from saved photos.</string>
+        <key>NSPhotoLibraryAddUsageDescription</key>
+        <string>Uncorked saves wine label photos to your library.</string>
 </dict>
 </plist>
