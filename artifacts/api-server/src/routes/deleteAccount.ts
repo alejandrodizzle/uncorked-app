@@ -3,7 +3,7 @@ import nodemailer from "nodemailer";
 
 const router = Router();
 
-router.post("/api/delete-account-request", async (req, res) => {
+router.post("/delete-account-request", async (req, res) => {
   const { email, reason } = req.body;
 
   if (!email || typeof email !== "string" || !email.includes("@")) {
