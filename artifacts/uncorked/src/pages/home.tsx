@@ -238,6 +238,10 @@ export default function Home() {
     }
 
     if (isNativeIOSBuild()) {
+      if (subStatus === "expired") {
+        setShowPaywallModal(true);
+        return;
+      }
       // Prompt lets the user choose Camera or Photo Library natively.
       // Both return base64, avoiding any ph:// / blob: URL entirely.
       handleNativeScan(CameraSource.Prompt);
@@ -423,8 +427,8 @@ export default function Home() {
         onScanClick={handleScanAttempt}
       />
 
-      {/* [STRIPE] Paywall modal overlay — web only, never shown on native iOS */}
-      {!isNativeIOSBuild() && showPaywallModal && (
+      {/* Paywall modal overlay — PaywallScreen handles iOS vs web UI internally */}
+      {showPaywallModal && (
         <div
           onClick={(e) => { if (e.target === e.currentTarget) { setShowPaywallModal(false); setShowPaywallWithPromo(false); } }}
           style={{
