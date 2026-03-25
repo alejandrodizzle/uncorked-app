@@ -8,6 +8,7 @@ import WineDetailScreen from "./wine-detail";
 import PaywallScreen from "./paywall";
 import type { SearchResult } from "../types/search";
 import { apiUrl } from "../lib/api";
+import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 
 function getOrCreateUserId(): string {
   let id = localStorage.getItem("uncorked_user_id");
@@ -163,29 +164,14 @@ export default function Home() {
     });
   };
 
-  const handleScanAttempt = () => {
-    // [STRIPE] Paywall gate — web only; native iOS always allows scanning
-    if (!isNativeIOSBuild() && subStatus === "expired") {
-      setShowPaywallModal(true);
-      return;
-    }
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    // [STRIPE] Paywall gate — web only; native iOS always allows scanning
-    if (!isNativeIOSBuild() && subStatus === "expired") {
-      setShowPaywallModal(true);
-      return;
-    }
+  // ── Shared scan executor ────────────────────────────────────────────────────
+  // Accepts a FormData already containing the "image" field and posts to /api/scan.
+  // Used by both the native-iOS base64 path and the web file-input path.
+  const executeScan = async (formData: FormData) => {
     setError(null);
     setScanning(true);
     setActiveTab("home");
     try {
-      const formData = new FormData();
-      formData.append("image", file);
       const res = await fetch(apiUrl("api/scan"), { method: "POST", body: formData });
       if (!res.ok) {
         const data = await res.json().catch(() => ({ error: "Unknown error" }));
@@ -203,9 +189,77 @@ export default function Home() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
       setScanning(false);
-    } finally {
-      if (fileInputRef.current) fileInputRef.current.value = "";
     }
+  };
+
+  // ── Native iOS path (Capacitor) ─────────────────────────────────────────────
+  // Uses @capacitor/camera with CameraResultType.Base64 so we never receive a
+  // ph:// or blob: URL — those cause the "string did not match expected pattern"
+  // WebKit crash when passed to fetch() or FormData on iOS.
+  const handleNativeScan = async (source: CameraSource) => {
+    try {
+      const photo = await Camera.getPhoto({
+        resultType: CameraResultType.Base64,
+        source,
+        quality: 90,
+      });
+
+      if (!photo.base64String) return;
+
+      // Decode base64 → Blob directly. Never calling URL.createObjectURL(),
+      // so no blob: URL is created — safe for WebKit.
+      const raw = atob(photo.base64String);
+      const bytes = new Uint8Array(raw.length);
+      for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+      const blob = new Blob([bytes], { type: "image/jpeg" });
+
+      const formData = new FormData();
+      formData.append("image", blob, "photo.jpg");
+      await executeScan(formData);
+    } catch (err: any) {
+      // User cancelled the picker — swallow silently
+      const msg: string = err?.message ?? "";
+      if (
+        msg.toLowerCase().includes("cancel") ||
+        msg.toLowerCase().includes("dismiss") ||
+        msg.toLowerCase().includes("no image")
+      ) return;
+      setError("Could not access camera. Please check permissions and try again.");
+    }
+  };
+
+  // ── Entry point for the scan button ────────────────────────────────────────
+  const handleScanAttempt = () => {
+    // [STRIPE] Paywall gate — web only; native iOS always allows scanning
+    if (!isNativeIOSBuild() && subStatus === "expired") {
+      setShowPaywallModal(true);
+      return;
+    }
+
+    if (isNativeIOSBuild()) {
+      // Prompt lets the user choose Camera or Photo Library natively.
+      // Both return base64, avoiding any ph:// / blob: URL entirely.
+      handleNativeScan(CameraSource.Prompt);
+      return;
+    }
+
+    // Web fallback: standard file input
+    fileInputRef.current?.click();
+  };
+
+  // ── Web file-input handler (unchanged for non-iOS) ──────────────────────────
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // [STRIPE] Paywall gate — web only; native iOS always allows scanning
+    if (!isNativeIOSBuild() && subStatus === "expired") {
+      setShowPaywallModal(true);
+      return;
+    }
+    const formData = new FormData();
+    formData.append("image", file);
+    await executeScan(formData);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   if (showSplash) return <SplashScreen onDone={() => setShowSplash(false)} />;
