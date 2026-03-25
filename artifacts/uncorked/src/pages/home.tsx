@@ -9,6 +9,7 @@ import PaywallScreen from "./paywall";
 import type { SearchResult } from "../types/search";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { App } from "@capacitor/app";
+import { Home as HomeIconLucide } from "lucide-react";
 
 // Absolute API URL — works in web, iOS, and Android native builds.
 // VITE_API_URL is baked in at build time; falls back to the production host
@@ -171,35 +172,34 @@ export default function Home() {
     initUser();
   }, [userId]);
 
-  // ── Android hardware/gesture back button ────────────────────────────────────
-  // Intercepts the Android back gesture. Uses browser history when the app has
-  // pushed its own entries (screen transitions); exits only when nothing remains.
+  // ── Android back gesture + popstate (combined) ──────────────────────────────
+  // Pushes an initial history entry on mount so there is always at least one
+  // state to pop. The popstate listener restores the correct tab when the user
+  // navigates back. The Capacitor backButton listener drives history.back() on
+  // Android hardware/gesture back, falling through to App.exitApp() only when
+  // the stack is exhausted.
   useEffect(() => {
+    window.history.pushState({ tab: "home" }, "");
+
+    const onPopState = (e: PopStateEvent) => {
+      const tab = e.state?.tab as Tab | undefined;
+      if (tab) setActiveTab(tab);
+      else setActiveTab("home");
+    };
+    window.addEventListener("popstate", onPopState);
+
     const handler = App.addListener("backButton", () => {
-      if (window.history.state && window.history.length > 1) {
+      if (window.history.length > 1) {
         window.history.back();
       } else {
         App.exitApp();
       }
     });
-    return () => { handler.then((h) => h.remove()); };
-  }, []);
 
-  // ── Popstate — restore screen on browser back ────────────────────────────────
-  // Fires when the user navigates back via hardware gesture or history.back().
-  // Reads the pushed state to restore the previous tab/screen.
-  useEffect(() => {
-    const handlePop = () => {
-      const state = window.history.state as { tab?: Tab; screen?: string } | null;
-      setDetailWine(null); // always close detail overlay on back
-      if (state?.tab) {
-        setActiveTab(state.tab);
-      } else {
-        setActiveTab("home");
-      }
+    return () => {
+      window.removeEventListener("popstate", onPopState);
+      handler.then((h) => h.remove());
     };
-    window.addEventListener("popstate", handlePop);
-    return () => window.removeEventListener("popstate", handlePop);
   }, []);
 
   // ── Screen navigation with history push ────────────────────────────────────
@@ -809,7 +809,7 @@ function BottomNav({
     id: string; label: string; icon: JSX.Element;
     onClick?: () => void; disabled?: boolean; badge?: number | null; navTab?: Tab;
   }> = [
-    { id: "home-nav", label: "Home", icon: <HomeIcon />, navTab: "home", onClick: () => onTabChange("home") },
+    { id: "home-nav", label: "Home", icon: <HomeIconLucide size={22} />, navTab: "home", onClick: () => onTabChange("home") },
     { id: "scan",     label: "Scan",    icon: <CameraTabIcon />, onClick: onScanClick },
     { id: "results",  label: "Results", icon: <ListIcon />,      disabled: !hasResults },
     { id: "saved",    label: "Saved",   icon: <BookmarkIcon />,  badge: savedCount > 0 ? savedCount : null },
