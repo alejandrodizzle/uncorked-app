@@ -24,9 +24,9 @@ function getOrCreateUserId(): string {
 // This flag is true only when running inside a Capacitor native iOS/Android shell.
 // When false (browser / web app), the full Stripe paywall runs normally.
 // To re-enable Stripe on iOS: remove the early-return in initUser() below.
-function isNativeIOSBuild(): boolean {
-  return !!(window as any).Capacitor?.isNativePlatform?.();
-}
+const isNativeIOSBuild = () => {
+  return !!(window as any).Capacitor?.isNativePlatform();
+};
 // ──────────────────────────────────────────────────────────────────────────────
 
 export type Wine = {
