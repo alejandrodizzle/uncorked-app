@@ -7,8 +7,13 @@ import SplashScreen from "./splash";
 import WineDetailScreen from "./wine-detail";
 import PaywallScreen from "./paywall";
 import type { SearchResult } from "../types/search";
-import { apiUrl } from "../lib/api";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
+
+// Absolute API URL — works in web, iOS, and Android native builds.
+// VITE_API_URL is baked in at build time; falls back to the production host
+// so relative-URL failures (HTML-instead-of-JSON) cannot occur on native builds.
+const apiUrl = (path: string) =>
+  `${import.meta.env.VITE_API_URL || "https://wine-scan-ai.replit.app"}/${path}`;
 
 function getOrCreateUserId(): string {
   let id = localStorage.getItem("uncorked_user_id");
