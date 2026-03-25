@@ -16,6 +16,7 @@ workflows:
         script: |
           cd artifacts/uncorked
           npm install --legacy-peer-deps
+          npx cap sync android
       - name: Build web app
         script: |
           cd artifacts/uncorked

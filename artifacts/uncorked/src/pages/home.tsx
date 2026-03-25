@@ -8,6 +8,7 @@ import WineDetailScreen from "./wine-detail";
 import PaywallScreen from "./paywall";
 import type { SearchResult } from "../types/search";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
+import { App } from "@capacitor/app";
 
 // Absolute API URL — works in web, iOS, and Android native builds.
 // VITE_API_URL is baked in at build time; falls back to the production host
@@ -169,6 +170,21 @@ export default function Home() {
 
     initUser();
   }, [userId]);
+
+  // ── Android hardware/gesture back button ────────────────────────────────────
+  // Intercepts the Android back gesture and uses browser history so the user
+  // navigates within the app. Only calls App.exitApp() when there is no history
+  // left to go back to.
+  useEffect(() => {
+    const handler = App.addListener("backButton", ({ canGoBack }) => {
+      if (canGoBack) {
+        window.history.back();
+      } else {
+        App.exitApp();
+      }
+    });
+    return () => { handler.then((h) => h.remove()); };
+  }, []);
 
   const handleSaveToggle = (wine: Wine) => {
     setSavedWines((prev) => {
