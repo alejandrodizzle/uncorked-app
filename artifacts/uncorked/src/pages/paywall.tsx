@@ -2,14 +2,17 @@ import { useState } from "react";
 import { apiUrl } from "../lib/api";
 
 // ─── Platform detection ────────────────────────────────────────────────────────
-function isNativeIOSBuild(): boolean {
+// Returns true for ANY Capacitor native build (iOS or Android).
+// Must match the implementation in home.tsx exactly so both files agree on
+// whether we're running natively. On native, Stripe is completely disabled —
+// all purchases go through StoreKit / RevenueCat only.
+const isNativeIOSBuild = () => {
   try {
-    const Capacitor = (window as any).Capacitor;
-    return !!(Capacitor?.isNativePlatform?.() && Capacitor?.getPlatform?.() === "ios");
+    return !!(window as any).Capacitor?.isNativePlatform();
   } catch {
     return false;
   }
-}
+};
 
 // ─── Apple IAP product IDs (must match App Store Connect exactly) ─────────────
 const IAP_PRODUCTS = {
@@ -142,7 +145,7 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
       return;
     }
 
-    // Web: validate via Stripe API
+    // Web: validate promo code via API
     try {
       const res = await fetch(apiUrl("api/stripe/redeem-code"), {
         method: "POST",
@@ -196,11 +199,13 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
 
   // ── Web: show email input step ───────────────────────────────────────────────
   async function handleSubscribe() {
+    if (nativeIOS) return; // Safety guard — web checkout never runs on native builds
     setShowEmailInput(true);
   }
 
-  // ── Web: Stripe checkout ─────────────────────────────────────────────────────
+  // ── Web: checkout — web-only, never called on native builds ─────────────────
   async function handleCheckout() {
+    if (nativeIOS) return; // Safety guard — Stripe never runs on native builds
     if (!email.trim() || !email.includes("@")) {
       setError("Please enter a valid email address");
       return;
@@ -209,7 +214,7 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
     setError(null);
 
     try {
-      // [STRIPE] Fetch available products and prices
+      // Fetch available products and prices
       const productsRes = await fetch(apiUrl("api/stripe/products-with-prices"));
       const productsData = await productsRes.json();
       const products: any[] = productsData.data ?? [];
@@ -677,7 +682,7 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
         }}>
           {nativeIOS
             ? "Secure payment powered by Apple · Cancel anytime in Settings"
-            : "Secure payment powered by Stripe · Cancel anytime"
+            : "Secure payment · Cancel anytime"
           }
         </p>
 
