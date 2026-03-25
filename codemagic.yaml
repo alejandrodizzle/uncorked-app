@@ -23,6 +23,7 @@ workflows:
       - name: Capacitor sync Android
         script: |
           cd artifacts/uncorked
+          mkdir -p android/app/src/main/assets
           npx cap sync android
       - name: Set Java version
         script: |
