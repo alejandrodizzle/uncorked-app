@@ -202,6 +202,7 @@ export default function Home() {
         resultType: CameraResultType.Base64,
         source,
         quality: 90,
+        presentationStyle: 'fullscreen',
       });
 
       if (!photo.base64String) return;

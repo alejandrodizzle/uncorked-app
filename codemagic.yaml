@@ -54,7 +54,7 @@ workflows:
         bundle_identifier: com.aarenas.uncorked
       vars:
         BUNDLE_ID: "com.aarenas.uncorked"
-        APP_STORE_APP_ID: "com.aarenas.uncorked"
+        APP_STORE_APP_ID: "6760919192"
         BUILD_NUMBER: 1
         XCODE_WORKSPACE: "artifacts/uncorked/ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
