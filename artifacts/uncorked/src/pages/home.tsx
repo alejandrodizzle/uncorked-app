@@ -19,13 +19,26 @@ function getOrCreateUserId(): string {
   return id;
 }
 
-// ── iOS App Store compliance ───────────────────────────────────────────────────
-// Apple requires in-app purchases to use IAP, not third-party payment processors.
-// This flag is true only when running inside a Capacitor native iOS/Android shell.
-// When false (browser / web app), the full Stripe paywall runs normally.
-// To re-enable Stripe on iOS: remove the early-return in initUser() below.
+// ── Platform detection ─────────────────────────────────────────────────────────
+// isNativeIOSBuild — true ONLY on native iOS.
+//   Used for Apple IAP compliance: Stripe is disabled on iOS, all purchases go
+//   through StoreKit / RevenueCat. Returns false on Android and web.
 const isNativeIOSBuild = () => {
-  return !!(window as any).Capacitor?.isNativePlatform();
+  try {
+    return (window as any).Capacitor?.getPlatform?.() === "ios";
+  } catch {
+    return false;
+  }
+};
+
+// isNativeApp — true on any Capacitor native build (iOS or Android).
+//   Used for native camera routing (both platforms use @capacitor/camera).
+const isNativeApp = () => {
+  try {
+    return !!(window as any).Capacitor?.isNativePlatform?.();
+  } catch {
+    return false;
+  }
 };
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -231,19 +244,15 @@ export default function Home() {
 
   // ── Entry point for the scan button ────────────────────────────────────────
   const handleScanAttempt = () => {
-    // [STRIPE] Paywall gate — web only; native iOS always allows scanning
-    if (!isNativeIOSBuild() && subStatus === "expired") {
+    // Paywall gate — all platforms
+    if (subStatus === "expired") {
       setShowPaywallModal(true);
       return;
     }
 
-    if (isNativeIOSBuild()) {
-      if (subStatus === "expired") {
-        setShowPaywallModal(true);
-        return;
-      }
-      // Prompt lets the user choose Camera or Photo Library natively.
-      // Both return base64, avoiding any ph:// / blob: URL entirely.
+    if (isNativeApp()) {
+      // iOS and Android: use native camera (Capacitor base64 path).
+      // Avoids ph:// / blob: URLs that crash WebKit on iOS.
       handleNativeScan(CameraSource.Prompt);
       return;
     }
@@ -252,12 +261,11 @@ export default function Home() {
     fileInputRef.current?.click();
   };
 
-  // ── Web file-input handler (unchanged for non-iOS) ──────────────────────────
+  // ── Web file-input handler (web only — native platforms use handleNativeScan) ─
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    // [STRIPE] Paywall gate — web only; native iOS always allows scanning
-    if (!isNativeIOSBuild() && subStatus === "expired") {
+    if (subStatus === "expired") {
       setShowPaywallModal(true);
       return;
     }

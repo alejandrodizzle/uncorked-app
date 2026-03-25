@@ -2,13 +2,12 @@ import { useState } from "react";
 import { apiUrl } from "../lib/api";
 
 // ─── Platform detection ────────────────────────────────────────────────────────
-// Returns true for ANY Capacitor native build (iOS or Android).
-// Must match the implementation in home.tsx exactly so both files agree on
-// whether we're running natively. On native, Stripe is completely disabled —
-// all purchases go through StoreKit / RevenueCat only.
+// Returns true ONLY on native iOS — used for Apple IAP compliance.
+// On iOS, Stripe is disabled and all purchases go through StoreKit / RevenueCat.
+// Returns false on Android (uses Stripe web paywall) and web.
 const isNativeIOSBuild = () => {
   try {
-    return !!(window as any).Capacitor?.isNativePlatform();
+    return (window as any).Capacitor?.getPlatform?.() === "ios";
   } catch {
     return false;
   }

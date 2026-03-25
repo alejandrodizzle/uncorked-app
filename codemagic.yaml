@@ -19,7 +19,7 @@ workflows:
       - name: Build web app
         script: |
           cd artifacts/uncorked
-          npx vite build
+          VITE_API_URL=https://wine-scan-ai.replit.app/ npx vite build
       - name: Capacitor sync Android
         script: |
           cd artifacts/uncorked
