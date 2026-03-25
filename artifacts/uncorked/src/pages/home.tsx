@@ -172,12 +172,11 @@ export default function Home() {
   }, [userId]);
 
   // ── Android hardware/gesture back button ────────────────────────────────────
-  // Intercepts the Android back gesture and uses browser history so the user
-  // navigates within the app. Only calls App.exitApp() when there is no history
-  // left to go back to.
+  // Intercepts the Android back gesture. Uses browser history when the app has
+  // pushed its own entries (screen transitions); exits only when nothing remains.
   useEffect(() => {
-    const handler = App.addListener("backButton", ({ canGoBack }) => {
-      if (canGoBack) {
+    const handler = App.addListener("backButton", () => {
+      if (window.history.state && window.history.length > 1) {
         window.history.back();
       } else {
         App.exitApp();
@@ -185,6 +184,32 @@ export default function Home() {
     });
     return () => { handler.then((h) => h.remove()); };
   }, []);
+
+  // ── Popstate — restore screen on browser back ────────────────────────────────
+  // Fires when the user navigates back via hardware gesture or history.back().
+  // Reads the pushed state to restore the previous tab/screen.
+  useEffect(() => {
+    const handlePop = () => {
+      const state = window.history.state as { tab?: Tab; screen?: string } | null;
+      setDetailWine(null); // always close detail overlay on back
+      if (state?.tab) {
+        setActiveTab(state.tab);
+      } else {
+        setActiveTab("home");
+      }
+    };
+    window.addEventListener("popstate", handlePop);
+    return () => window.removeEventListener("popstate", handlePop);
+  }, []);
+
+  // ── Screen navigation with history push ────────────────────────────────────
+  // Pushes a browser history entry on every tab transition so Android's back
+  // gesture has real entries to pop through. The popstate listener above reads
+  // the state and restores the correct tab/screen.
+  const navigateTo = (tab: Tab) => {
+    window.history.pushState({ tab }, "");
+    setActiveTab(tab);
+  };
 
   const handleSaveToggle = (wine: Wine) => {
     setSavedWines((prev) => {
@@ -215,7 +240,7 @@ export default function Home() {
       const scannedWines: Wine[] = data.wines ?? [];
       setWines(scannedWines);
       setScanning(false);
-      setActiveTab("results");
+      navigateTo("results");
       const entry: ScanHistory = { id: Date.now().toString(), scannedAt: Date.now(), wines: scannedWines };
       const newHistory = [entry, ...history].slice(0, 5);
       setHistory(newHistory);
@@ -427,7 +452,10 @@ export default function Home() {
           <HomeTab
             error={error}
             onScanClick={handleScanAttempt}
-            onSelectWine={setDetailWine}
+            onSelectWine={(wine) => {
+              window.history.pushState({ screen: "detail" }, "");
+              setDetailWine(wine);
+            }}
           />
         )}
         {activeTab === "results" && (
@@ -443,14 +471,14 @@ export default function Home() {
         {activeTab === "history" && (
           <HistoryScreen
             history={history}
-            onViewScan={(w) => { setWines(w); setActiveTab("results"); }}
+            onViewScan={(w) => { setWines(w); navigateTo("results"); }}
           />
         )}
       </div>
 
       <BottomNav
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={navigateTo}
         hasResults={wines.length > 0}
         savedCount={savedWines.length}
         onScanClick={handleScanAttempt}
@@ -777,11 +805,15 @@ function BottomNav({
   savedCount: number;
   onScanClick: () => void;
 }) {
-  const tabs = [
-    { id: "home" as Tab, label: "Scan", icon: <CameraTabIcon />, onClick: onScanClick },
-    { id: "results" as Tab, label: "Results", icon: <ListIcon />, disabled: !hasResults },
-    { id: "saved" as Tab, label: "Saved", icon: <BookmarkIcon />, badge: savedCount > 0 ? savedCount : null },
-    { id: "history" as Tab, label: "History", icon: <ClockIcon /> },
+  const tabs: Array<{
+    id: string; label: string; icon: JSX.Element;
+    onClick?: () => void; disabled?: boolean; badge?: number | null; navTab?: Tab;
+  }> = [
+    { id: "home-nav", label: "Home", icon: <HomeIcon />, navTab: "home", onClick: () => onTabChange("home") },
+    { id: "scan",     label: "Scan",    icon: <CameraTabIcon />, onClick: onScanClick },
+    { id: "results",  label: "Results", icon: <ListIcon />,      disabled: !hasResults },
+    { id: "saved",    label: "Saved",   icon: <BookmarkIcon />,  badge: savedCount > 0 ? savedCount : null },
+    { id: "history",  label: "History", icon: <ClockIcon /> },
   ];
 
   return (
@@ -798,12 +830,16 @@ function BottomNav({
     >
       <div className="flex items-stretch">
         {tabs.map((tab) => {
-          const isActive = activeTab === tab.id && !(tab.id === "home");
+          // "home-nav" is active when on the home tab; "scan" is an action (never active);
+          // all others are active when activeTab matches their id.
+          const isActive = tab.id === "home-nav"
+            ? activeTab === "home"
+            : tab.id !== "scan" && activeTab === tab.id;
           const isDisabled = tab.disabled;
           const handleClick = () => {
             if (isDisabled) return;
             if (tab.onClick) { tab.onClick(); return; }
-            onTabChange(tab.id);
+            onTabChange(tab.id as Tab);
           };
 
           return (
@@ -882,6 +918,15 @@ function CameraIcon() {
       <circle cx="20" cy="22" r="6" stroke="#faf7f2" strokeWidth="2" fill="none" />
       <circle cx="20" cy="22" r="3" fill="#c9a84c" opacity="0.85" />
       <circle cx="32" cy="15" r="1.5" fill="#faf7f2" opacity="0.7" />
+    </svg>
+  );
+}
+
+function HomeIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z" />
+      <polyline points="9 21 9 12 15 12 15 21" />
     </svg>
   );
 }
