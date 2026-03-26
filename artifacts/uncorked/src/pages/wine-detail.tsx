@@ -27,11 +27,10 @@ type Props = {
   wine: SearchResult;
   savedWines: SavedWine[];
   onSaveToggle: (wine: Wine) => void;
-  onBack: () => void;
   onHome: () => void;
 };
 
-export default function WineDetailScreen({ wine, savedWines, onSaveToggle, onBack, onHome }: Props) {
+export default function WineDetailScreen({ wine, savedWines, onSaveToggle, onHome }: Props) {
   const [aiDetail, setAiDetail] = useState<WineDetailAI | null>(null);
   const [vivinoRating, setVivinoRating] = useState<{ rating: number | null; ratingsCount: number | null } | null>(
     wine.vivinoRating != null ? { rating: wine.vivinoRating, ratingsCount: wine.vivinoRatingsCount } : null

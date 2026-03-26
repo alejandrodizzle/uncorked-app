@@ -334,7 +334,6 @@ export default function Home() {
         wine={detailWine}
         savedWines={savedWines}
         onSaveToggle={handleSaveToggle}
-        onBack={() => setDetailWine(null)}
         onHome={goHome}
       />
     );
