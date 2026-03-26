@@ -136,13 +136,13 @@ export default function WineDetailScreen({ wine, savedWines, onSaveToggle, onBac
           title="Home"
           style={{
             position: "absolute", top: "1rem", right: "1rem",
-            background: "rgba(250,247,242,0.15)", border: "none", cursor: "pointer",
-            borderRadius: "10px", padding: "8px",
-            display: "flex", alignItems: "center",
-            color: "#faf7f2",
+            background: "rgba(255,255,255,0.2)", border: "none",
+            borderRadius: "50%", padding: "0.5rem",
+            cursor: "pointer", display: "flex",
+            alignItems: "center", justifyContent: "center",
           }}
         >
-          <Home size={18} />
+          <Home size={20} color="white" />
         </button>
 
         <div style={{ textAlign: "center", paddingTop: "1.5rem" }}>
