@@ -1,30 +1,45 @@
 import { useState } from "react";
+import { Home } from "lucide-react";
 import type { ScanHistory } from "./home";
 import type { Wine } from "./home";
 
 type Props = {
   history: ScanHistory[];
   onViewScan: (wines: Wine[]) => void;
+  onHome: () => void;
 };
 
-export default function HistoryScreen({ history, onViewScan }: Props) {
+export default function HistoryScreen({ history, onViewScan, onHome }: Props) {
   return (
     <div className="min-h-screen w-full" style={{ backgroundColor: "#faf7f2" }}>
-      <div className="px-6 pt-12 pb-4" style={{ borderBottom: "1px solid rgba(123,28,52,0.08)" }}>
-        <h1 style={{
-          fontFamily: "'Cormorant Garamond', Georgia, serif",
-          fontSize: "2rem", fontWeight: 600, color: "#7b1c34",
-          letterSpacing: "0.02em", lineHeight: 1,
-        }}>
-          History
-        </h1>
-        <p style={{
-          fontSize: "0.75rem", color: "rgba(123,28,52,0.5)",
-          fontFamily: "'Inter', sans-serif", marginTop: "0.25rem",
-        }}>
-          Last {history.length} {history.length === 1 ? "scan" : "scans"}
-        </p>
-        <div style={{ width: "40px", height: "1px", backgroundColor: "#c9a84c", marginTop: "0.75rem" }} />
+      <div className="px-6 pt-12 pb-4" style={{ borderBottom: "1px solid rgba(123,28,52,0.08)", display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+        <div>
+          <h1 style={{
+            fontFamily: "'Cormorant Garamond', Georgia, serif",
+            fontSize: "2rem", fontWeight: 600, color: "#7b1c34",
+            letterSpacing: "0.02em", lineHeight: 1,
+          }}>
+            History
+          </h1>
+          <p style={{
+            fontSize: "0.75rem", color: "rgba(123,28,52,0.5)",
+            fontFamily: "'Inter', sans-serif", marginTop: "0.25rem",
+          }}>
+            Last {history.length} {history.length === 1 ? "scan" : "scans"}
+          </p>
+          <div style={{ width: "40px", height: "1px", backgroundColor: "#c9a84c", marginTop: "0.75rem" }} />
+        </div>
+        <button
+          onClick={onHome}
+          title="Home"
+          style={{
+            background: "none", border: "none", cursor: "pointer",
+            padding: "4px", color: "#7b1c34", display: "flex", alignItems: "center",
+            marginTop: "4px",
+          }}
+        >
+          <Home size={22} />
+        </button>
       </div>
 
       <div className="px-6 py-4" style={{ paddingBottom: "100px" }}>

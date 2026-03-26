@@ -9,7 +9,6 @@ import PaywallScreen from "./paywall";
 import type { SearchResult } from "../types/search";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { App } from "@capacitor/app";
-import { Home as HomeIconLucide } from "lucide-react";
 
 // Absolute API URL — works in web, iOS, and Android native builds.
 // VITE_API_URL is baked in at build time; falls back to the production host
@@ -211,6 +210,11 @@ export default function Home() {
     setActiveTab(tab);
   };
 
+  const goHome = () => {
+    window.history.pushState({ tab: "home" }, "");
+    setActiveTab("home");
+  };
+
   const handleSaveToggle = (wine: Wine) => {
     setSavedWines((prev) => {
       const key = `${wine.name}||${wine.vintage}`;
@@ -331,6 +335,7 @@ export default function Home() {
         savedWines={savedWines}
         onSaveToggle={handleSaveToggle}
         onBack={() => setDetailWine(null)}
+        onHome={goHome}
       />
     );
   }
@@ -463,15 +468,17 @@ export default function Home() {
             wines={wines}
             savedWines={savedWines}
             onSaveToggle={handleSaveToggle}
+            onHome={goHome}
           />
         )}
         {activeTab === "saved" && (
-          <SavedScreen savedWines={savedWines} onRemove={handleSaveToggle} />
+          <SavedScreen savedWines={savedWines} onRemove={handleSaveToggle} onHome={goHome} />
         )}
         {activeTab === "history" && (
           <HistoryScreen
             history={history}
             onViewScan={(w) => { setWines(w); navigateTo("results"); }}
+            onHome={goHome}
           />
         )}
       </div>
@@ -809,7 +816,6 @@ function BottomNav({
     id: string; label: string; icon: JSX.Element;
     onClick?: () => void; disabled?: boolean; badge?: number | null; navTab?: Tab;
   }> = [
-    { id: "home-nav", label: "Home", icon: <HomeIconLucide size={22} />, navTab: "home", onClick: () => onTabChange("home") },
     { id: "scan",     label: "Scan",    icon: <CameraTabIcon />, onClick: onScanClick },
     { id: "results",  label: "Results", icon: <ListIcon />,      disabled: !hasResults },
     { id: "saved",    label: "Saved",   icon: <BookmarkIcon />,  badge: savedCount > 0 ? savedCount : null },
@@ -830,11 +836,8 @@ function BottomNav({
     >
       <div className="flex items-stretch">
         {tabs.map((tab) => {
-          // "home-nav" is active when on the home tab; "scan" is an action (never active);
-          // all others are active when activeTab matches their id.
-          const isActive = tab.id === "home-nav"
-            ? activeTab === "home"
-            : tab.id !== "scan" && activeTab === tab.id;
+          // "scan" is an action button (never highlighted); all others highlight when active.
+          const isActive = tab.id !== "scan" && activeTab === tab.id;
           const isDisabled = tab.disabled;
           const handleClick = () => {
             if (isDisabled) return;

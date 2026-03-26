@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Home } from "lucide-react";
 import type { SavedWine, Wine } from "./home";
 import type { SearchResult } from "../types/search";
 import { apiUrl } from "../lib/api";
@@ -27,9 +28,10 @@ type Props = {
   savedWines: SavedWine[];
   onSaveToggle: (wine: Wine) => void;
   onBack: () => void;
+  onHome: () => void;
 };
 
-export default function WineDetailScreen({ wine, savedWines, onSaveToggle, onBack }: Props) {
+export default function WineDetailScreen({ wine, savedWines, onSaveToggle, onBack, onHome }: Props) {
   const [aiDetail, setAiDetail] = useState<WineDetailAI | null>(null);
   const [vivinoRating, setVivinoRating] = useState<{ rating: number | null; ratingsCount: number | null } | null>(
     wine.vivinoRating != null ? { rating: wine.vivinoRating, ratingsCount: wine.vivinoRatingsCount } : null
@@ -130,19 +132,17 @@ export default function WineDetailScreen({ wine, savedWines, onSaveToggle, onBac
         position: "relative",
       }}>
         <button
-          onClick={onBack}
+          onClick={onHome}
+          title="Home"
           style={{
-            position: "absolute", top: "1rem", left: "1rem",
+            position: "absolute", top: "1rem", right: "1rem",
             background: "rgba(250,247,242,0.15)", border: "none", cursor: "pointer",
-            borderRadius: "10px", padding: "8px 12px",
-            display: "flex", alignItems: "center", gap: "6px",
+            borderRadius: "10px", padding: "8px",
+            display: "flex", alignItems: "center",
             color: "#faf7f2",
           }}
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
-          <span style={{ fontSize: "0.75rem", fontFamily: "'Inter', sans-serif", fontWeight: 600 }}>Back</span>
+          <Home size={18} />
         </button>
 
         <div style={{ textAlign: "center", paddingTop: "1.5rem" }}>

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Home } from "lucide-react";
 import type { Wine, SavedWine } from "./home";
 import { apiUrl } from "../lib/api";
 import BuyOnlineDrawer from "../components/BuyOnlineDrawer";
@@ -29,9 +30,10 @@ type Props = {
   wines: Wine[];
   savedWines: SavedWine[];
   onSaveToggle: (wine: Wine) => void;
+  onHome: () => void;
 };
 
-export default function ResultsScreen({ wines, savedWines, onSaveToggle }: Props) {
+export default function ResultsScreen({ wines, savedWines, onSaveToggle, onHome }: Props) {
   const [vivinoRatings, setVivinoRatings] = useState<Record<number, VivinoRating>>({});
   const [vivinoStatus, setVivinoStatus] = useState<Record<number, FetchStatus>>({});
   const [aiAnalyses, setAiAnalyses] = useState<Record<number, AIAnalysis>>({});
@@ -242,6 +244,17 @@ export default function ResultsScreen({ wines, savedWines, onSaveToggle }: Props
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={onHome}
+              title="Home"
+              style={{
+                background: "rgba(123,28,52,0.07)", border: "1px solid rgba(123,28,52,0.12)",
+                borderRadius: "10px", padding: "7px", cursor: "pointer",
+                display: "flex", alignItems: "center", color: "#7b1c34",
+              }}
+            >
+              <Home size={18} />
+            </button>
             <button
               onClick={handleShare}
               title="Share top wine"
