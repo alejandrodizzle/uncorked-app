@@ -482,6 +482,18 @@ export default function Home() {
         )}
       </div>
 
+      {activeTab === "home" && !scanning && (
+        <div style={{
+          textAlign: "center",
+          padding: "0.5rem",
+          fontSize: "0.7rem",
+          color: "#c9b8b8",
+          letterSpacing: "0.05em",
+        }}>
+          v1.0.1 (build 26)
+        </div>
+      )}
+
       <BottomNav
         activeTab={activeTab}
         onTabChange={navigateTo}
