@@ -487,7 +487,7 @@ export default function Home() {
           textAlign: "center",
           padding: "0.5rem",
           fontSize: "0.7rem",
-          color: "#c9b8b8",
+          color: "#a89090",
           letterSpacing: "0.05em",
         }}>
           v1.0.1 (build 26)
