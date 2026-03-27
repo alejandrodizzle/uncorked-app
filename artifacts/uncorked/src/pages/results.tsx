@@ -3,6 +3,7 @@ import { Home } from "lucide-react";
 import type { Wine, SavedWine } from "./home";
 import { apiUrl } from "../lib/api";
 import BuyOnlineDrawer from "../components/BuyOnlineDrawer";
+import { Share } from "@capacitor/share";
 
 type VivinoRating = {
   rating: number | null;
@@ -205,20 +206,17 @@ export default function ResultsScreen({ wines, savedWines, onSaveToggle, onHome 
       return score > bestScore ? parseInt(idxStr) : best;
     }, 0);
     const top = wines[topIdx];
+    const wineName = top?.name ?? "Uncorked Wine Scanner";
     try {
-      if (navigator.share) {
-        await navigator.share({
-          title: top?.name ?? "Uncorked Wine Scanner",
-          text: top
-            ? `Check out ${top.name} on Uncorked Wine Scanner.`
-            : "Scan any wine list instantly with Uncorked.",
-          url: "https://wine-scan-ai.replit.app",
-        });
-      } else {
-        await navigator.clipboard.writeText("https://wine-scan-ai.replit.app");
-        alert("Link copied to clipboard!");
-      }
-    } catch { /* user cancelled */ }
+      await Share.share({
+        title: wineName,
+        text: top
+          ? `Check out ${wineName} on Uncorked Wine Scanner.`
+          : "Scan any wine list instantly with Uncorked.",
+        url: "https://wine-scan-ai.replit.app",
+        dialogTitle: "Share this wine",
+      });
+    } catch { /* user cancelled or unavailable */ }
   };
 
   const isSaved = (wine: Wine) =>
