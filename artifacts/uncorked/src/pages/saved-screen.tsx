@@ -11,7 +11,10 @@ export default function SavedScreen({ savedWines, onRemove, onHome }: Props) {
   return (
     <div style={{ minHeight: "100svh", width: "100%", backgroundColor: "#faf7f2" }}>
       <div style={{
-        padding: "3rem 1.5rem 1rem",
+        paddingTop: "env(safe-area-inset-top, 48px)",
+        paddingLeft: "1.5rem",
+        paddingRight: "1.5rem",
+        paddingBottom: "1rem",
         borderBottom: "1px solid rgba(123,28,52,0.08)",
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.25rem" }}>

@@ -225,8 +225,8 @@ export default function ResultsScreen({ wines, savedWines, onSaveToggle, onHome 
     <div className="min-h-screen w-full" style={{ backgroundColor: "#faf7f2" }}>
 
       {/* Sticky header */}
-      <div className="sticky top-0 z-10 px-6 pt-10 pb-3"
-        style={{ backgroundColor: "#faf7f2", borderBottom: "1px solid rgba(123,28,52,0.08)" }}>
+      <div className="sticky top-0 z-10 px-6 pb-3"
+        style={{ backgroundColor: "#faf7f2", borderBottom: "1px solid rgba(123,28,52,0.08)", paddingTop: "env(safe-area-inset-top, 40px)" }}>
         <div className="flex items-center justify-between mb-1">
           <div>
             <h1 style={{

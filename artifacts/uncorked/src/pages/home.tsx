@@ -334,7 +334,7 @@ export default function Home() {
         wine={detailWine}
         savedWines={savedWines}
         onSaveToggle={handleSaveToggle}
-        onHome={goHome}
+        onHome={() => { setDetailWine(null); goHome(); }}
       />
     );
   }
@@ -358,7 +358,7 @@ export default function Home() {
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "0 16px",
           height: `${bannerHeight}px`,
-          paddingTop: "env(safe-area-inset-top, 0px)",
+          paddingTop: "env(safe-area-inset-top, 16px)",
           zIndex: 200, boxSizing: "border-box",
         }}>
           <span style={{
@@ -402,7 +402,7 @@ export default function Home() {
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "0 16px",
           height: `${bannerHeight}px`,
-          paddingTop: "env(safe-area-inset-top, 0px)",
+          paddingTop: "env(safe-area-inset-top, 16px)",
           zIndex: 200, boxSizing: "border-box",
         }}>
           <span style={{
@@ -842,7 +842,7 @@ function BottomNav({
         borderTop: "1px solid rgba(123,28,52,0.1)",
         boxShadow: "0 -4px 20px rgba(123,28,52,0.08)",
         paddingBottom: "env(safe-area-inset-bottom, 0px)",
-        zIndex: 100,
+        zIndex: 999,
       }}
     >
       <div className="flex items-stretch">
