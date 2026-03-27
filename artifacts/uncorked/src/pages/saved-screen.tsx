@@ -1,13 +1,15 @@
 import { Home } from "lucide-react";
 import type { SavedWine } from "./home";
+import type { SearchResult } from "../types/search";
 
 type Props = {
   savedWines: SavedWine[];
   onRemove: (wine: SavedWine) => void;
   onHome: () => void;
+  onWineSelect: (wine: SearchResult) => void;
 };
 
-export default function SavedScreen({ savedWines, onRemove, onHome }: Props) {
+export default function SavedScreen({ savedWines, onRemove, onHome, onWineSelect }: Props) {
   return (
     <div style={{ minHeight: "100svh", width: "100%", backgroundColor: "#faf7f2" }}>
       <div style={{
@@ -50,7 +52,20 @@ export default function SavedScreen({ savedWines, onRemove, onHome }: Props) {
         ) : (
           <div className="flex flex-col gap-3">
             {savedWines.slice().reverse().map((wine, i) => (
-              <SavedCard key={`${wine.name}||${wine.vintage}||${i}`} wine={wine} onRemove={() => onRemove(wine)} />
+              <SavedCard
+                key={`${wine.name}||${wine.vintage}||${i}`}
+                wine={wine}
+                onRemove={() => onRemove(wine)}
+                onSelect={() => onWineSelect({
+                  name: wine.name,
+                  vintage: wine.vintage,
+                  region: wine.region,
+                  grape: wine.grape,
+                  vivinoRating: null,
+                  vivinoRatingsCount: null,
+                  vivinoWineId: null,
+                })}
+              />
             ))}
           </div>
         )}
@@ -59,18 +74,20 @@ export default function SavedScreen({ savedWines, onRemove, onHome }: Props) {
   );
 }
 
-function SavedCard({ wine, onRemove }: { wine: SavedWine; onRemove: () => void }) {
+function SavedCard({ wine, onRemove, onSelect }: { wine: SavedWine; onRemove: () => void; onSelect: () => void }) {
   const query = encodeURIComponent(wine.vintage ? `${wine.name} ${wine.vintage}` : wine.name);
   const savedDate = new Date(wine.savedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
   return (
     <div
       className="w-full rounded-2xl overflow-hidden"
+      onClick={onSelect}
       style={{
         backgroundColor: "#fff",
         border: "1px solid rgba(123,28,52,0.08)",
         boxShadow: "0 2px 12px rgba(123,28,52,0.05)",
         animation: "fadeInUp 0.35s ease both",
+        cursor: "pointer",
       }}
     >
       <style>{`@keyframes fadeInUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }`}</style>
@@ -92,7 +109,7 @@ function SavedCard({ wine, onRemove }: { wine: SavedWine; onRemove: () => void }
           </h3>
 
           <button
-            onClick={onRemove}
+            onClick={(e) => { e.stopPropagation(); onRemove(); }}
             title="Remove bookmark"
             style={{
               background: "none", border: "none", cursor: "pointer",
@@ -162,7 +179,7 @@ function SavedCard({ wine, onRemove }: { wine: SavedWine; onRemove: () => void }
               { abbr: "WE", url: `https://www.winemag.com/?s=${query}` },
               { abbr: "RP", url: `https://www.robertparker.com/search?query=${query}` },
             ].map(({ abbr, url }) => (
-              <a key={abbr} href={url} target="_blank" rel="noopener noreferrer"
+              <a key={abbr} href={url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
                 style={{
                   display: "flex", alignItems: "center", justifyContent: "center",
                   width: "26px", height: "22px", borderRadius: "5px",

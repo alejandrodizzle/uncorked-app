@@ -358,7 +358,7 @@ export default function Home() {
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "0 16px",
           height: `${bannerHeight}px`,
-          paddingTop: "env(safe-area-inset-top, 0px)",
+          paddingTop: isNativeApp() && !isNativeIOSBuild() ? "28px" : "0px",
           zIndex: 200, boxSizing: "border-box",
         }}>
           <span style={{
@@ -402,7 +402,7 @@ export default function Home() {
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "0 16px",
           height: `${bannerHeight}px`,
-          paddingTop: "env(safe-area-inset-top, 0px)",
+          paddingTop: isNativeApp() && !isNativeIOSBuild() ? "28px" : "0px",
           zIndex: 200, boxSizing: "border-box",
         }}>
           <span style={{
@@ -471,7 +471,15 @@ export default function Home() {
           />
         )}
         {activeTab === "saved" && (
-          <SavedScreen savedWines={savedWines} onRemove={handleSaveToggle} onHome={goHome} />
+          <SavedScreen
+            savedWines={savedWines}
+            onRemove={handleSaveToggle}
+            onHome={goHome}
+            onWineSelect={(wine) => {
+              window.history.pushState({ screen: "detail" }, "");
+              setDetailWine(wine);
+            }}
+          />
         )}
         {activeTab === "history" && (
           <HistoryScreen
