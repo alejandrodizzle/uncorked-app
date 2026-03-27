@@ -9,6 +9,7 @@ import PaywallScreen from "./paywall";
 import type { SearchResult } from "../types/search";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { App } from "@capacitor/app";
+import { StatusBar } from "@capacitor/status-bar";
 
 // Absolute API URL — works in web, iOS, and Android native builds.
 // VITE_API_URL is baked in at build time; falls back to the production host
@@ -88,6 +89,13 @@ export default function Home() {
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [showPaywallModal, setShowPaywallModal] = useState(false);
   const [showPaywallWithPromo, setShowPaywallWithPromo] = useState(false);
+  const [statusBarHeight, setStatusBarHeight] = useState(0);
+
+  useEffect(() => {
+    if (isNativeApp() && !isNativeIOSBuild()) {
+      setStatusBarHeight(28);
+    }
+  }, []);
 
   useEffect(() => {
     // Handle return from Stripe checkout (?payment=success or ?subscribed=true)
@@ -172,20 +180,13 @@ export default function Home() {
   }, [userId]);
 
   // ── Android back gesture + popstate (combined) ──────────────────────────────
-  // Pushes an initial history entry on mount so there is always at least one
-  // state to pop. The popstate listener restores the correct tab when the user
-  // navigates back. The Capacitor backButton listener drives history.back() on
-  // Android hardware/gesture back, falling through to App.exitApp() only when
-  // the stack is exhausted.
   useEffect(() => {
     window.history.pushState({ tab: "home" }, "");
 
-    const onPopState = (e: PopStateEvent) => {
-      const tab = e.state?.tab as Tab | undefined;
-      if (tab) setActiveTab(tab);
-      else setActiveTab("home");
+    const onPop = (e: PopStateEvent) => {
+      setActiveTab(e.state?.tab || "home");
     };
-    window.addEventListener("popstate", onPopState);
+    window.addEventListener("popstate", onPop);
 
     const handler = App.addListener("backButton", () => {
       if (window.history.length > 1) {
@@ -196,7 +197,7 @@ export default function Home() {
     });
 
     return () => {
-      window.removeEventListener("popstate", onPopState);
+      window.removeEventListener("popstate", onPop);
       handler.then((h) => h.remove());
     };
   }, []);
@@ -210,10 +211,7 @@ export default function Home() {
     setActiveTab(tab);
   };
 
-  const goHome = () => {
-    window.history.pushState({ tab: "home" }, "");
-    setActiveTab("home");
-  };
+  const goHome = () => navigateTo("home");
 
   const handleSaveToggle = (wine: Wine) => {
     setSavedWines((prev) => {
@@ -233,7 +231,7 @@ export default function Home() {
   const executeScan = async (formData: FormData) => {
     setError(null);
     setScanning(true);
-    setActiveTab("home");
+    navigateTo("home");
     try {
       const res = await fetch(apiUrl("api/scan"), { method: "POST", body: formData });
       if (!res.ok) {
@@ -358,7 +356,7 @@ export default function Home() {
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "0 16px",
           height: `${bannerHeight}px`,
-          paddingTop: isNativeApp() && !isNativeIOSBuild() ? "28px" : "0px",
+          marginTop: `${statusBarHeight}px`,
           zIndex: 200, boxSizing: "border-box",
         }}>
           <span style={{
@@ -402,7 +400,7 @@ export default function Home() {
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "0 16px",
           height: `${bannerHeight}px`,
-          paddingTop: isNativeApp() && !isNativeIOSBuild() ? "28px" : "0px",
+          marginTop: `${statusBarHeight}px`,
           zIndex: 200, boxSizing: "border-box",
         }}>
           <span style={{
@@ -494,11 +492,12 @@ export default function Home() {
         <div style={{
           textAlign: "center",
           padding: "0.5rem",
-          fontSize: "0.7rem",
-          color: "#a89090",
+          fontSize: "0.75rem",
+          color: "#7b1c34",
+          opacity: 0.5,
           letterSpacing: "0.05em",
         }}>
-          v1.0.1 (build 26)
+          v1.0.1
         </div>
       )}
 

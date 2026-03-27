@@ -205,15 +205,18 @@ export default function ResultsScreen({ wines, savedWines, onSaveToggle, onHome 
       return score > bestScore ? parseInt(idxStr) : best;
     }, 0);
     const top = wines[topIdx];
-    if (!top) return;
-    const rating = vivinoRatings[topIdx]?.rating ?? top.vivinoRating;
     try {
       if (navigator.share) {
         await navigator.share({
-          title: top.name,
-          text: `Check out ${top.name} — rated ${rating ?? "??"}/5 on Vivino. Found with Uncorked Wine Scanner.`,
+          title: top?.name ?? "Uncorked Wine Scanner",
+          text: top
+            ? `Check out ${top.name} on Uncorked Wine Scanner.`
+            : "Scan any wine list instantly with Uncorked.",
           url: "https://wine-scan-ai.replit.app",
         });
+      } else {
+        await navigator.clipboard.writeText("https://wine-scan-ai.replit.app");
+        alert("Link copied to clipboard!");
       }
     } catch { /* user cancelled */ }
   };
