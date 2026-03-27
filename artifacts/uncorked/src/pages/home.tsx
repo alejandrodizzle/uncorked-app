@@ -358,7 +358,7 @@ export default function Home() {
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "0 16px",
           height: `${bannerHeight}px`,
-          paddingTop: "env(safe-area-inset-top, 16px)",
+          paddingTop: "env(safe-area-inset-top, 0px)",
           zIndex: 200, boxSizing: "border-box",
         }}>
           <span style={{
@@ -402,7 +402,7 @@ export default function Home() {
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "0 16px",
           height: `${bannerHeight}px`,
-          paddingTop: "env(safe-area-inset-top, 16px)",
+          paddingTop: "env(safe-area-inset-top, 0px)",
           zIndex: 200, boxSizing: "border-box",
         }}>
           <span style={{
