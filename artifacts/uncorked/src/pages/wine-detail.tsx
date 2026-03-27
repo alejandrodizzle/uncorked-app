@@ -700,33 +700,87 @@ function MerchantSheet({
               </p>
             </div>
           ) : merchants.length === 0 ? (
-            <div style={{ padding: "2.5rem 1.5rem", textAlign: "center" }}>
-              <div style={{ fontSize: "2.5rem", marginBottom: "0.75rem" }}>🔍</div>
+            <div style={{ padding: "0.5rem 1.5rem 2rem" }}>
               <p style={{
-                fontFamily: "'Cormorant Garamond', Georgia, serif",
-                fontSize: "1.15rem", color: "#7b1c34", marginBottom: "0.5rem",
+                fontSize: "0.72rem", color: "rgba(123,28,52,0.45)",
+                fontFamily: "'Inter', sans-serif", marginBottom: "1rem",
+                textAlign: "center", letterSpacing: "0.03em", textTransform: "uppercase",
+                fontWeight: 600,
               }}>
-                No online retailers found
+                Search for this wine at
               </p>
-              <p style={{ fontSize: "0.78rem", color: "rgba(123,28,52,0.5)", fontFamily: "'Inter', sans-serif", marginBottom: "1.25rem", lineHeight: 1.5 }}>
-                No online retailers found for this wine.
-              </p>
-              <a
-                href={`https://www.wine-searcher.com/find/${encodeURIComponent(vintage ? `${name} ${vintage}` : name)}`}
-                target="_blank" rel="noopener noreferrer"
-                style={{
-                  display: "inline-flex", alignItems: "center", gap: "6px",
-                  padding: "10px 20px", borderRadius: "12px",
-                  backgroundColor: "#7b1c34", color: "#faf7f2",
-                  fontSize: "0.82rem", fontFamily: "'Inter', sans-serif", fontWeight: 600,
-                  textDecoration: "none", letterSpacing: "0.02em",
-                }}
-              >
-                Search Wine-Searcher.com
-                <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <path d="M7 1h4v4M11 1L5 7M3 3H1v8h8V9" />
-                </svg>
-              </a>
+              {[
+                {
+                  name: "Wine-Searcher",
+                  description: "Compare prices from hundreds of merchants worldwide",
+                  url: `https://www.wine-searcher.com/find/${encodeURIComponent(vintage ? `${name} ${vintage}` : name)}`,
+                  badge: "WS", badgeColor: "#c0392b",
+                },
+                {
+                  name: "Vivino",
+                  description: "Buy directly with community reviews & ratings",
+                  url: `https://www.vivino.com/search/wines?q=${encodeURIComponent(vintage ? `${name} ${vintage}` : name)}`,
+                  badge: "V", badgeColor: "#AC1539",
+                },
+                {
+                  name: "Total Wine",
+                  description: "In-store pickup or delivery across the US",
+                  url: `https://www.totalwine.com/search/all?text=${encodeURIComponent(name)}`,
+                  badge: "TW", badgeColor: "#1a4a7a",
+                },
+                {
+                  name: "Wine.com",
+                  description: "Fast delivery, large selection, expert picks",
+                  url: `https://www.wine.com/search/${encodeURIComponent(name)}/0`,
+                  badge: "WC", badgeColor: "#2e6b3e",
+                },
+              ].map((r, idx, arr) => (
+                <a
+                  key={r.name}
+                  href={r.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: "flex", alignItems: "center", gap: "0.875rem",
+                    padding: "0.875rem 0",
+                    textDecoration: "none",
+                    borderBottom: idx < arr.length - 1 ? "1px solid rgba(123,28,52,0.07)" : "none",
+                  }}
+                >
+                  <div style={{
+                    width: "40px", height: "40px", borderRadius: "10px",
+                    backgroundColor: r.badgeColor, flexShrink: 0,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+                  }}>
+                    <span style={{
+                      fontSize: r.badge.length > 1 ? "0.6rem" : "0.85rem",
+                      fontWeight: 800, color: "#fff",
+                      fontFamily: "'Inter', sans-serif", letterSpacing: "0.02em",
+                    }}>
+                      {r.badge}
+                    </span>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{
+                      fontFamily: "'Inter', sans-serif", fontSize: "0.88rem",
+                      fontWeight: 600, color: "#7b1c34", margin: "0 0 0.15rem",
+                    }}>
+                      {r.name}
+                    </p>
+                    <p style={{
+                      fontFamily: "'Inter', sans-serif", fontSize: "0.72rem",
+                      color: "rgba(123,28,52,0.5)", margin: 0, lineHeight: 1.3,
+                    }}>
+                      {r.description}
+                    </p>
+                  </div>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(123,28,52,0.35)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                    <line x1="7" y1="17" x2="17" y2="7" />
+                    <polyline points="7 7 17 7 17 17" />
+                  </svg>
+                </a>
+              ))}
             </div>
           ) : (
             <div style={{ padding: "0 1.5rem" }}>
