@@ -80,6 +80,7 @@ router.post(
         wines = [];
       }
 
+      res.set("Cache-Control", "no-store, no-cache, must-revalidate");
       res.json({ wines });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to scan wine list";

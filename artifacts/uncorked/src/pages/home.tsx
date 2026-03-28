@@ -229,11 +229,12 @@ export default function Home() {
   // Accepts a FormData already containing the "image" field and posts to /api/scan.
   // Used by both the native-iOS base64 path and the web file-input path.
   const executeScan = async (formData: FormData) => {
+    setWines([]);
     setError(null);
     setScanning(true);
     navigateTo("home");
     try {
-      const res = await fetch(apiUrl("api/scan"), { method: "POST", body: formData });
+      const res = await fetch(apiUrl("api/scan"), { method: "POST", body: formData, cache: "no-store" });
       if (!res.ok) {
         const data = await res.json().catch(() => ({ error: "Unknown error" }));
         throw new Error(data.error ?? "Scan failed");
