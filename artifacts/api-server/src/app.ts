@@ -1,6 +1,7 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
@@ -28,6 +29,32 @@ app.use(
     allowedHeaders: ["Content-Type", "Authorization"],
   }),
 );
+
+// ── Rate limiting ─────────────────────────────────────────────────────────────
+
+const generalLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  message: { error: "Too many requests, please try again later." },
+});
+
+const scanLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  message: { error: "Scan limit reached. Please wait before scanning again." },
+});
+
+const searchLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  message: { error: "Search limit reached. Please wait before searching again." },
+});
+
+app.use("/api/", generalLimiter);
+app.use("/api/scan", scanLimiter);
+app.use("/api/search", searchLimiter);
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 app.use(
   pinoHttp({

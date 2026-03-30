@@ -127,16 +127,21 @@ async function searchRapidAPI(query: string): Promise<SearchResult[]> {
 }
 
 router.post("/search", async (req, res): Promise<void> => {
-  const { query } = req.body as { query?: string };
-  if (!query || query.trim().length < 3) {
+  const rawQuery: string = req.body?.query || req.query?.q || "";
+  const sanitizedQuery = rawQuery
+    .replace(/[<>{}[\]\\/]/g, "")
+    .substring(0, 100)
+    .trim();
+
+  if (!sanitizedQuery || sanitizedQuery.length < 3) {
     res.json({ results: [] });
     return;
   }
 
   try {
     const [vivinoResults, rapidResults] = await Promise.allSettled([
-      searchVivino(query.trim()),
-      searchRapidAPI(query.trim()),
+      searchVivino(sanitizedQuery),
+      searchRapidAPI(sanitizedQuery),
     ]);
 
     const vivino = vivinoResults.status === "fulfilled" ? vivinoResults.value : [];
