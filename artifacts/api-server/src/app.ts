@@ -1,11 +1,33 @@
 import express, { type Express } from "express";
 import cors from "cors";
+import helmet from "helmet";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { WebhookHandlers } from "./webhookHandlers";
 
 const app: Express = express();
+
+app.disable("x-powered-by");
+
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+  }),
+);
+
+app.use(
+  cors({
+    origin: [
+      "https://wine-scan-ai.replit.app",
+      "capacitor://localhost",
+      "http://localhost",
+      "http://localhost:5173",
+    ],
+    methods: ["GET", "POST"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  }),
+);
 
 app.use(
   pinoHttp({
@@ -26,8 +48,6 @@ app.use(
     },
   }),
 );
-
-app.use(cors());
 
 app.post(
   '/api/stripe/webhook',

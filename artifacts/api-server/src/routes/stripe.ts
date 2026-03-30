@@ -144,7 +144,8 @@ router.post('/stripe/checkout', async (req: any, res) => {
     res.json({ url: session.url });
   } catch (err: any) {
     console.error('Checkout error:', err);
-    res.status(500).json({ error: err.message || 'Checkout failed' });
+    const isDev = process.env.NODE_ENV !== 'production';
+    res.status(500).json({ error: isDev ? (err.message || 'Checkout failed') : 'Internal server error' });
   }
 });
 
@@ -169,7 +170,8 @@ router.get('/stripe/portal', async (req: any, res) => {
     res.json({ url: session.url });
   } catch (err: any) {
     console.error('Portal error:', err);
-    res.status(500).json({ error: err.message || 'Portal failed' });
+    const isDev = process.env.NODE_ENV !== 'production';
+    res.status(500).json({ error: isDev ? (err.message || 'Portal failed') : 'Internal server error' });
   }
 });
 
@@ -204,7 +206,8 @@ router.get('/stripe/products-with-prices', async (_req, res) => {
     res.json({ data: Array.from(productsMap.values()) });
   } catch (err: any) {
     console.error('Products error:', err);
-    res.status(500).json({ error: err.message });
+    const isDev = process.env.NODE_ENV !== 'production';
+    res.status(500).json({ error: isDev ? err.message : 'Internal server error' });
   }
 });
 
