@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import multer from "multer";
 import OpenAI from "openai";
+import { userStore } from "./users";
 
 const router: IRouter = Router();
 
@@ -24,11 +25,37 @@ const SYSTEM_PROMPT =
 
 const ALLOWED_MIME_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/heic"];
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+const TRIAL_DAYS = 7;
 
 router.post(
   "/scan",
   upload.single("image"),
   async (req, res): Promise<void> => {
+    // ── Server-side subscription / trial gate ─────────────────────────────────
+    const userId = (req.headers["x-user-id"] as string | undefined) || (req.body?.userId as string | undefined);
+
+    if (!userId) {
+      res.status(401).json({ error: "User ID required" });
+      return;
+    }
+
+    // Auto-register new users on first scan (handles server restarts gracefully)
+    if (!userStore.has(userId)) {
+      userStore.set(userId, { trialStart: Date.now(), subscribed: false, scanCount: 0 });
+    }
+
+    const user = userStore.get(userId)!;
+    const trialElapsed = (Date.now() - user.trialStart) / (1000 * 60 * 60 * 24);
+    const trialExpired = trialElapsed >= TRIAL_DAYS;
+
+    if (trialExpired && !user.subscribed) {
+      res.status(403).json({ error: "Trial expired. Please subscribe to continue scanning." });
+      return;
+    }
+
+    user.scanCount = (user.scanCount ?? 0) + 1;
+    // ─────────────────────────────────────────────────────────────────────────
+
     const file = req.file;
 
     if (!file) {

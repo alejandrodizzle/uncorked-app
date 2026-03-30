@@ -126,53 +126,61 @@ export default function Home() {
         return;
       }
 
-      // ── Step 2: compute trial status from localStorage IMMEDIATELY ──────────
-      // Runs synchronously before any await — banner renders on first paint.
-      if (!localStorage.getItem("trialStart") && !localStorage.getItem("subscribed")) {
-        localStorage.setItem("trialStart", Date.now().toString());
-      }
-
-      const trialStart = localStorage.getItem("trialStart");
-      const isSubscribed = !!localStorage.getItem("subscribed");
-
-      let localDaysLeft = 0;
-      if (trialStart && !isSubscribed) {
-        const daysElapsed = Math.floor((Date.now() - parseInt(trialStart)) / (1000 * 60 * 60 * 24));
-        localDaysLeft = Math.max(0, 7 - daysElapsed);
-      }
-
-      // Show banner immediately — before any await
-      if (isSubscribed) {
+      // ── Step 2: fast local render — show something before first await ────────
+      // Reads localStorage only for immediate paint; server is authoritative.
+      const localSubscribed = localStorage.getItem("subscribed") === "true";
+      const localTrialStart = localStorage.getItem("trialStart");
+      if (localSubscribed) {
         setSubStatus("active");
       } else {
+        let localDaysLeft = 7;
+        if (localTrialStart) {
+          const daysElapsed = Math.floor((Date.now() - parseInt(localTrialStart)) / (1000 * 60 * 60 * 24));
+          localDaysLeft = Math.max(0, 7 - daysElapsed);
+        }
         setSubStatus(localDaysLeft > 0 ? "trial" : "expired");
         setTrialDaysLeft(localDaysLeft);
       }
 
-      // ── Step 3: register user on server then get authoritative status ───────
+      // ── Step 3: server-side user store — authoritative trial / scan gate ─────
+      // This registers the user in the server-side userStore so the /api/scan
+      // endpoint can enforce the trial gate. Must be called before any scan.
+      try {
+        const userRes = await fetch(apiUrl(`api/user/${userId}`));
+        if (userRes.ok) {
+          const userData = await userRes.json();
+          if (userData.subscribed) {
+            setSubStatus("active");
+          } else if (userData.trialExpired) {
+            setSubStatus("expired");
+            setTrialDaysLeft(0);
+          } else {
+            setSubStatus("trial");
+            setTrialDaysLeft(userData.trialDaysLeft ?? 7);
+          }
+        }
+      } catch {
+        // Network unavailable — local calculation already displayed, leave it
+      }
+
+      // ── Step 4: Stripe subscription override (Stripe subscribers) ───────────
+      // Stripe is the authoritative source for paid subscribers. If the user has
+      // an active Stripe subscription, override whatever the user store says.
       try {
         await fetch(apiUrl("api/stripe/user"), {
           method: "POST",
           headers: { "x-user-id": userId },
         });
-
-        const res = await fetch(apiUrl("api/stripe/subscription"), {
+        const stripeRes = await fetch(apiUrl("api/stripe/subscription"), {
           headers: { "x-user-id": userId },
         });
-        const data = await res.json();
-
-        if (data.status === "active" || data.status === "trialing") {
+        const stripeData = await stripeRes.json();
+        if (stripeData.status === "active" || stripeData.status === "trialing") {
           setSubStatus("active");
-        } else if (data.status === "trial") {
-          setSubStatus("trial");
-          setTrialDaysLeft(data.trialDaysLeft ?? localDaysLeft);
-        } else if (data.status === "expired") {
-          setSubStatus("expired");
-          setTrialDaysLeft(0);
         }
-        // Any other server status: keep the locally-computed values already shown
+        // Trial/expired from Stripe: already set by server user store above
       } catch {
-        // Network unavailable — local calculation already displayed, leave it
+        // Stripe unavailable — server user store status already applied
       }
     }
 
@@ -234,7 +242,12 @@ export default function Home() {
     setScanning(true);
     navigateTo("home");
     try {
-      const res = await fetch(apiUrl("api/scan"), { method: "POST", body: formData, cache: "no-store" });
+      const res = await fetch(apiUrl("api/scan"), {
+        method: "POST",
+        body: formData,
+        cache: "no-store",
+        headers: { "x-user-id": userId },
+      });
       if (!res.ok) {
         const data = await res.json().catch(() => ({ error: "Unknown error" }));
         throw new Error(data.error ?? "Scan failed");

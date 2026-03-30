@@ -7,10 +7,12 @@ import aiRouter from "./ai";
 import searchRouter from "./search";
 import stripeRouter from "./stripe";
 import deleteAccountRouter from "./deleteAccount";
+import usersRouter from "./users";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use(usersRouter);
 router.use(scanRouter);
 router.use(ratingsRouter);
 router.use(rapidapiRouter);
