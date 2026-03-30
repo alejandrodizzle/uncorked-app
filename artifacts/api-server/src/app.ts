@@ -6,6 +6,7 @@ import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { WebhookHandlers } from "./webhookHandlers";
+import { getUncachableStripeClient } from "./stripeClient";
 
 const app: Express = express();
 
@@ -17,6 +18,22 @@ app.use(
   }),
 );
 
+// ── Content Security Policy ───────────────────────────────────────────────────
+app.use((_req, res, next) => {
+  res.setHeader(
+    "Content-Security-Policy",
+    "default-src 'self' https://wine-scan-ai.replit.app; " +
+    "script-src 'self' 'unsafe-inline'; " +
+    "connect-src 'self' https://api.revenuecat.com https://api.openai.com; " +
+    "img-src 'self' data: blob:; " +
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+    "font-src 'self' https://fonts.gstatic.com;",
+  );
+  next();
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 app.use(
   cors({
     origin: [
@@ -26,7 +43,7 @@ app.use(
       "http://localhost:5173",
     ],
     methods: ["GET", "POST"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: ["Content-Type", "Authorization", "x-user-id"],
   }),
 );
 
@@ -54,6 +71,19 @@ app.use("/api/", generalLimiter);
 app.use("/api/scan", scanLimiter);
 app.use("/api/search", searchLimiter);
 
+// ── X-User-ID validation middleware ──────────────────────────────────────────
+const validateUserId = (req: express.Request, res: express.Response, next: express.NextFunction): void => {
+  const userId = (req.headers["x-user-id"] as string | undefined) || (req.body as any)?.userId;
+  if (userId !== undefined && (typeof userId !== "string" || userId.length > 100 || userId.length < 8)) {
+    res.status(400).json({ error: "Invalid user ID format" });
+    return;
+  }
+  next();
+};
+
+app.use("/api/scan", validateUserId);
+app.use("/api/search", validateUserId);
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 app.use(
@@ -76,25 +106,43 @@ app.use(
   }),
 );
 
+// ── Stripe webhook — MUST be before express.json() ───────────────────────────
+// Uses express.raw() so the raw body is preserved for HMAC signature verification.
 app.post(
-  '/api/stripe/webhook',
-  express.raw({ type: 'application/json' }),
+  "/api/stripe/webhook",
+  express.raw({ type: "application/json" }),
   async (req, res) => {
-    const signature = req.headers['stripe-signature'];
-    if (!signature) {
-      return res.status(400).json({ error: 'Missing stripe-signature' });
+    const signature = req.headers["stripe-signature"];
+    const webhookSecret = process.env["STRIPE_WEBHOOK_SECRET"];
+
+    if (!signature || !webhookSecret) {
+      res.status(400).json({ error: "Missing signature or webhook secret" });
+      return;
+    }
+
+    const sig = Array.isArray(signature) ? signature[0] : signature;
+
+    try {
+      // Explicit signature verification — rejects tampered or replayed events
+      const stripe = await getUncachableStripeClient();
+      stripe.webhooks.constructEvent(req.body as Buffer, sig, webhookSecret);
+    } catch (err: any) {
+      logger.error({ err }, "Webhook signature verification failed");
+      res.status(400).json({ error: "Invalid signature" });
+      return;
     }
 
     try {
-      const sig = Array.isArray(signature) ? signature[0] : signature;
       await WebhookHandlers.processWebhook(req.body as Buffer, sig);
       res.status(200).json({ received: true });
     } catch (error: any) {
-      logger.error({ err: error }, 'Webhook processing error');
-      res.status(400).json({ error: 'Webhook processing error' });
+      logger.error({ err: error }, "Webhook processing error");
+      res.status(400).json({ error: "Webhook processing error" });
     }
-  }
+  },
 );
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: true, limit: "25mb" }));
