@@ -206,14 +206,14 @@ export default function ResultsScreen({ wines, savedWines, onSaveToggle, onHome 
       return score > bestScore ? parseInt(idxStr) : best;
     }, 0);
     const top = wines[topIdx];
-    const wineName = top?.name ?? "Uncorked Wine Scanner";
+    const wineName = top?.name ?? "Pocket Somm";
     try {
       await Share.share({
         title: wineName,
         text: top
-          ? `Check out ${wineName} on Uncorked Wine Scanner.`
-          : "Scan any wine list instantly with Uncorked.",
-        url: "https://wine-scan-ai.replit.app",
+          ? `Check out ${wineName} on Pocket Somm.`
+          : "Scan any wine list instantly with Pocket Somm.",
+        url: "https://getpocketsomm.com",
         dialogTitle: "Share this wine",
       });
     } catch { /* user cancelled or unavailable */ }

@@ -37,7 +37,7 @@ export default function SplashScreen({ onDone }: { onDone: () => void }) {
             fontSize: "3.25rem", fontWeight: 600, color: "#faf7f2",
             letterSpacing: "0.06em", lineHeight: 1, margin: 0,
           }}>
-            Uncorked
+            Pocket Somm
           </h1>
           <div style={{
             width: "48px", height: "1px", backgroundColor: "#c9a84c",

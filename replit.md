@@ -4,9 +4,9 @@
 
 pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
 
-## Uncorked App
+## Pocket Somm App
 
-A mobile-first React + Express wine app. Key features:
+A mobile-first React + Express wine app (formerly "Uncorked"). Key features:
 - GPT-4o Vision scan of restaurant wine lists
 - Vivino community ratings via HTML scraping
 - Manual wine search with dropdown suggestions
@@ -29,7 +29,7 @@ A mobile-first React + Express wine app. Key features:
 - `pages/home.tsx` — Trial badge, expired paywall gate, payment success toast
 
 **Database**: `users` table in public schema (id TEXT, stripe_customer_id, stripe_subscription_id, created_at)
-**Seed script**: `pnpm --filter @workspace/scripts run seed-products` — creates Uncorked Premium product
+**Seed script**: `pnpm --filter @workspace/scripts run seed-products` — creates Pocket Somm Premium product
 
 **User identification**: Anonymous UUID in `localStorage.uncorked_user_id`, sent as `x-user-id` header
 **Trial logic**: Server tracks `created_at` in users table; 7 days from first use
@@ -88,7 +88,7 @@ Every package extends `tsconfig.base.json` which sets `composite: true`. The roo
 
 ## Packages
 
-### `artifacts/uncorked` (`@workspace/uncorked`)
+### `artifacts/uncorked` (`@workspace/pocket-somm`)
 
 React + Vite mobile-first web app (max-width 430px). State machine in `src/pages/home.tsx` drives three screens:
 

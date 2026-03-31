@@ -285,7 +285,7 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
             color: "#7b1c34", margin: "0.75rem 0 0.25rem",
             letterSpacing: "0.04em",
           }}>
-            Uncorked Premium
+            Pocket Somm Premium
           </h1>
           <div style={{ width: "50px", height: "1px", backgroundColor: "#c9a84c", margin: "0.75rem auto 1rem" }} />
           <p style={{
@@ -360,7 +360,7 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
                   fontFamily: "'Inter', sans-serif", fontSize: "0.9rem",
                   color: "rgba(60,15,25,0.65)", margin: 0, lineHeight: 1.5,
                 }}>
-                  Enjoy unlimited access to Uncorked!
+                  Enjoy unlimited access to Pocket Somm!
                 </p>
               </div>
             ) : (

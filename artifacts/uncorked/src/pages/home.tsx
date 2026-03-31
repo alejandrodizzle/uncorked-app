@@ -620,7 +620,7 @@ function HomeTab({
             fontSize: "clamp(3rem, 12vw, 3.75rem)",
             fontWeight: 600, color: "#7b1c34", letterSpacing: "0.04em",
           }}>
-            Uncorked
+            Pocket Somm
           </h1>
 
           <div style={{ width: "60px", height: "1px", backgroundColor: "#c9a84c", marginBottom: "1.5rem" }} />

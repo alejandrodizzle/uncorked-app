@@ -37,7 +37,7 @@ export default function TermsOfService() {
           marginTop: "8px",
           marginBottom: 0,
         }}>
-          Uncorked Wine Scanner
+          Pocket Somm
         </p>
         <div style={{
           width: "48px",
@@ -52,19 +52,19 @@ export default function TermsOfService() {
 
         <p style={metaStyle}>
           Last updated: March 2025 &nbsp;·&nbsp; Developer: Alejandro Arenas &nbsp;·&nbsp;{" "}
-          <a href="mailto:wine.uncorked.app@gmail.com" style={{ color: "#7b1c34", textDecoration: "none" }}>
-            wine.uncorked.app@gmail.com
+          <a href="mailto:getpocketsomm@gmail.com" style={{ color: "#7b1c34", textDecoration: "none" }}>
+            getpocketsomm@gmail.com
           </a>
         </p>
 
         <p style={bodyStyle}>
-          Please read these Terms of Service carefully before using Uncorked. By downloading,
+          Please read these Terms of Service carefully before using Pocket Somm. By downloading,
           installing, or using the app you agree to be bound by these terms.
         </p>
 
         <Section title="1. Acceptance of Terms">
           <p style={bodyStyle}>
-            By accessing or using Uncorked ("the App"), you agree to these Terms of Service
+            By accessing or using Pocket Somm ("the App"), you agree to these Terms of Service
             and our Privacy Policy. If you do not agree, please do not use the App. These
             terms apply to all versions of the App, including iOS, Android, and web.
           </p>
@@ -73,7 +73,7 @@ export default function TermsOfService() {
         <Section title="2. Eligibility">
           <p style={bodyStyle}>
             The App is intended for users aged <strong>21 years or older</strong>. By using
-            Uncorked you confirm that you meet this age requirement. The App is designed to
+            Pocket Somm you confirm that you meet this age requirement. The App is designed to
             assist with wine discovery and is not intended to promote underage drinking.
           </p>
         </Section>
@@ -123,7 +123,7 @@ export default function TermsOfService() {
 
         <Section title="5. AI-Generated Content">
           <p style={bodyStyle}>
-            Uncorked uses AI (OpenAI GPT-4o Vision) to extract wine names from photos and
+            Pocket Somm uses AI (OpenAI GPT-4o Vision) to extract wine names from photos and
             generate tasting notes and quality scores. This content is <strong>informational
             only</strong> and may not always be accurate. We make no warranties regarding
             the correctness or completeness of AI-generated ratings, descriptions, or price
@@ -134,7 +134,7 @@ export default function TermsOfService() {
         <Section title="6. Third-Party Data">
           <p style={bodyStyle}>
             Ratings displayed in the App (Vivino, CellarTracker, critic scores) are sourced
-            from third-party APIs. Uncorked does not own, control, or guarantee the accuracy
+            from third-party APIs. Pocket Somm does not own, control, or guarantee the accuracy
             of this data. Third-party data is subject to its own terms and may change at any
             time without notice.
           </p>
@@ -193,8 +193,8 @@ export default function TermsOfService() {
           }}>
             <p style={{ margin: 0, fontSize: "0.9rem", color: "#3c0f19", lineHeight: 1.6 }}>
               <strong>Alejandro Arenas</strong><br />
-              <a href="mailto:wine.uncorked.app@gmail.com" style={{ color: "#7b1c34", textDecoration: "none" }}>
-                wine.uncorked.app@gmail.com
+              <a href="mailto:getpocketsomm@gmail.com" style={{ color: "#7b1c34", textDecoration: "none" }}>
+                getpocketsomm@gmail.com
               </a>
             </p>
           </div>
@@ -213,7 +213,7 @@ export default function TermsOfService() {
               opacity: 0.75,
             }}
           >
-            ← Back to Uncorked
+            ← Back to Pocket Somm
           </a>
         </div>
       </div>

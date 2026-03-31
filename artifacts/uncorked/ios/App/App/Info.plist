@@ -5,7 +5,7 @@
         <key>CFBundleDevelopmentRegion</key>
         <string>en</string>
         <key>CFBundleDisplayName</key>
-        <string>Uncorked</string>
+        <string>Pocket Somm</string>
         <key>CFBundleExecutable</key>
         <string>$(EXECUTABLE_NAME)</string>
         <key>CFBundleIdentifier</key>
@@ -48,10 +48,10 @@
         <key>UIViewControllerBasedStatusBarAppearance</key>
         <true/>
         <key>NSCameraUsageDescription</key>
-        <string>Uncorked uses your camera to scan wine labels and restaurant menus to identify wines instantly.</string>
+        <string>Pocket Somm uses your camera to scan wine labels and restaurant menus to identify wines instantly.</string>
         <key>NSPhotoLibraryUsageDescription</key>
-        <string>Uncorked accesses your photo library so you can scan wine labels from saved photos.</string>
+        <string>Pocket Somm accesses your photo library so you can scan wine labels from saved photos.</string>
         <key>NSPhotoLibraryAddUsageDescription</key>
-        <string>Uncorked saves wine label photos to your library.</string>
+        <string>Pocket Somm saves wine label photos to your library.</string>
 </dict>
 </plist>

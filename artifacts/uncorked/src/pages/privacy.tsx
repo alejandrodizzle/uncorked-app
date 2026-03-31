@@ -37,7 +37,7 @@ export default function PrivacyPolicy() {
           marginTop: "8px",
           marginBottom: 0,
         }}>
-          Uncorked Wine Scanner
+          Pocket Somm
         </p>
         <div style={{
           width: "48px",
@@ -52,13 +52,13 @@ export default function PrivacyPolicy() {
 
         <p style={metaStyle}>
           Last updated: March 2025 &nbsp;·&nbsp; Developer: Alejandro Arenas &nbsp;·&nbsp;{" "}
-          <a href="mailto:wine.uncorked.app@gmail.com" style={{ color: "#7b1c34", textDecoration: "none" }}>
-            wine.uncorked.app@gmail.com
+          <a href="mailto:getpocketsomm@gmail.com" style={{ color: "#7b1c34", textDecoration: "none" }}>
+            getpocketsomm@gmail.com
           </a>
         </p>
 
         <p style={bodyStyle}>
-          Your privacy matters. Uncorked is designed to keep your data local on your device
+          Your privacy matters. Pocket Somm is designed to keep your data local on your device
           whenever possible. This policy explains exactly what we collect, how we use it,
           and your choices.
         </p>
@@ -103,7 +103,7 @@ export default function PrivacyPolicy() {
         </Section>
 
         <Section title="3. Third-Party Services">
-          <p style={bodyStyle}>Uncorked uses the following third-party services:</p>
+          <p style={bodyStyle}>Pocket Somm uses the following third-party services:</p>
           <ul style={listStyle}>
             <li style={liStyle}>
               <strong>OpenAI</strong> — processes wine list photos to extract wine names.
@@ -165,7 +165,7 @@ export default function PrivacyPolicy() {
 
         <Section title="6. Children's Privacy">
           <p style={bodyStyle}>
-            Uncorked is intended for users aged 21 and older. We do not knowingly collect
+            Pocket Somm is intended for users aged 21 and older. We do not knowingly collect
             personal information from anyone under 21. If you believe a minor has used the
             app, please contact us and we will remove any associated data.
           </p>
@@ -192,8 +192,8 @@ export default function PrivacyPolicy() {
           }}>
             <p style={{ margin: 0, fontSize: "0.9rem", color: "#3c0f19", lineHeight: 1.6 }}>
               <strong>Alejandro Arenas</strong><br />
-              <a href="mailto:wine.uncorked.app@gmail.com" style={{ color: "#7b1c34", textDecoration: "none" }}>
-                wine.uncorked.app@gmail.com
+              <a href="mailto:getpocketsomm@gmail.com" style={{ color: "#7b1c34", textDecoration: "none" }}>
+                getpocketsomm@gmail.com
               </a>
             </p>
           </div>
@@ -212,7 +212,7 @@ export default function PrivacyPolicy() {
               opacity: 0.75,
             }}
           >
-            ← Back to Uncorked
+            ← Back to Pocket Somm
           </a>
         </div>
       </div>

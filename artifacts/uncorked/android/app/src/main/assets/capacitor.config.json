@@ -7,12 +7,6 @@
                 "cleartext": false
         },
         "plugins": {
-                "Camera": {
-                        "permissions": [
-                                "camera",
-                                "photos"
-                        ]
-                },
                 "SplashScreen": {
                         "launchShowDuration": 2000,
                         "launchAutoHide": true,
@@ -34,11 +28,5 @@
                 "preferredContentMode": "mobile",
                 "allowsLinkPreview": false,
                 "limitsNavigationsToAppBoundDomains": false
-        },
-        "packageClassList": [
-                "CAPCameraPlugin",
-                "SplashScreenPlugin",
-                "StatusBarPlugin",
-                "PurchasesPlugin"
-        ]
+        }
 }

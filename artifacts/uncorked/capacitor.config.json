@@ -1,6 +1,6 @@
 {
   "appId": "com.aarenas.uncorked",
-  "appName": "Uncorked Wine Scanner",
+  "appName": "Pocket Somm",
   "webDir": "dist",
   "server": {
     "androidScheme": "https"

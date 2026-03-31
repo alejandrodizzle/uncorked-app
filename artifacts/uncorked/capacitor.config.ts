@@ -2,7 +2,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
   appId: "com.aarenas.uncorked",
-  appName: "Uncorked",
+  appName: "Pocket Somm",
   webDir: "dist/public",
 
   server: {

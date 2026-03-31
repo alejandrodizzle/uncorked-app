@@ -39,13 +39,13 @@ export default function DeleteAccount() {
       <div style={styles.card}>
         <div style={styles.brand}>
           <span style={styles.logo}>🍷</span>
-          <h1 style={styles.appName}>Uncorked</h1>
+          <h1 style={styles.appName}>Pocket Somm</h1>
         </div>
 
         <h2 style={styles.title}>Delete My Account</h2>
         <p style={styles.subtitle}>
           We're sorry to see you go. Submitting this form will permanently delete your
-          Uncorked account and all associated data, including scan history and
+          Pocket Somm account and all associated data, including scan history and
           subscription records.
         </p>
 
@@ -77,7 +77,7 @@ export default function DeleteAccount() {
               </ul>
             </div>
 
-            <label style={styles.label}>Email address on your Uncorked account *</label>
+            <label style={styles.label}>Email address on your Pocket Somm account *</label>
             <input
               type="email"
               value={email}
@@ -109,7 +109,7 @@ export default function DeleteAccount() {
 
             <p style={styles.footer}>
               Changed your mind?{" "}
-              <a href="/" style={styles.link}>Go back to Uncorked</a>
+              <a href="/" style={styles.link}>Go back to Pocket Somm</a>
             </p>
           </>
         )}

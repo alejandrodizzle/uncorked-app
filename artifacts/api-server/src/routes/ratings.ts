@@ -212,7 +212,7 @@ router.post("/ratings/cellartracker", async (req, res): Promise<void> => {
     const query = vintage ? `${name} ${vintage}` : name;
     const url = `https://www.cellartracker.com/api.asp?q=wines&wine=${encodeURIComponent(query)}&fmt=json`;
     const response = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; Uncorked/1.0)", Accept: "application/json" },
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; PocketSomm/1.0)", Accept: "application/json" },
       signal: AbortSignal.timeout(8000),
     });
     if (!response.ok) { res.json({ communityScore: null, reviewCount: null }); return; }

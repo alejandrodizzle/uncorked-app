@@ -4,14 +4,14 @@ async function createProducts() {
   try {
     const stripe = await getUncachableStripeClient();
 
-    console.log('Checking for existing Uncorked products...');
+    console.log('Checking for existing Pocket Somm products...');
 
     const existing = await stripe.products.search({
-      query: "name:'Uncorked Premium' AND active:'true'",
+      query: "name:'Pocket Somm Premium' AND active:'true'",
     });
 
     if (existing.data.length > 0) {
-      console.log('Uncorked Premium already exists. Skipping creation.');
+      console.log('Pocket Somm Premium already exists. Skipping creation.');
       const prices = await stripe.prices.list({ product: existing.data[0].id, active: true });
       prices.data.forEach((p: any) => {
         console.log(`  Price: ${p.id}  ${p.unit_amount / 100} ${p.currency}/${p.recurring?.interval}`);
@@ -19,9 +19,9 @@ async function createProducts() {
       return;
     }
 
-    console.log('Creating Uncorked Premium product...');
+    console.log('Creating Pocket Somm Premium product...');
     const product = await stripe.products.create({
-      name: 'Uncorked Premium',
+      name: 'Pocket Somm Premium',
       description: 'Unlimited wine scans, AI tasting notes, and Vivino ratings. First 7 days free.',
     });
     console.log(`Created product: ${product.name} (${product.id})`);
