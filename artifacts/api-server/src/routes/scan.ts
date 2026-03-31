@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import multer from "multer";
 import OpenAI from "openai";
 import { userStore } from "./users";
+import { storage } from "../storage";
 
 const router: IRouter = Router();
 
@@ -49,8 +50,20 @@ router.post(
     const trialExpired = trialElapsed >= TRIAL_DAYS;
 
     if (trialExpired && !user.subscribed) {
-      res.status(403).json({ error: "Trial expired. Please subscribe to continue scanning." });
-      return;
+      // userStore doesn't know about Stripe promo codes — check Stripe DB before blocking.
+      // This covers promo users and Stripe subscribers who skipped /api/user/:userId init.
+      try {
+        const stripeUser = await storage.getUser(userId);
+        if (stripeUser?.access_type === "lifetime") {
+          user.subscribed = true; // Update in-memory store for future requests this session
+        } else {
+          res.status(403).json({ error: "Trial expired. Please subscribe to continue scanning." });
+          return;
+        }
+      } catch {
+        res.status(403).json({ error: "Trial expired. Please subscribe to continue scanning." });
+        return;
+      }
     }
 
     user.scanCount = (user.scanCount ?? 0) + 1;

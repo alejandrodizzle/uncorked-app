@@ -174,6 +174,8 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
     const productId = IAP_PRODUCTS[selectedPlan];
     const result = await purchaseWithStoreKit(productId);
     if (result.success) {
+      // Display-cache only — server is authoritative. Used for fast local render
+      // on next load (home.tsx Step 2) before the server response arrives.
       localStorage.setItem("subscribed", "true");
       onSubscribed();
     } else {
@@ -188,6 +190,8 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
     setError(null);
     const result = await restoreStoreKitPurchases();
     if (result.success) {
+      // Display-cache only — server is authoritative. Used for fast local render
+      // on next load (home.tsx Step 2) before the server response arrives.
       localStorage.setItem("subscribed", "true");
       onSubscribed();
     } else {

@@ -119,9 +119,13 @@ export default function Home() {
       }
       // ── [STRIPE PAYWALL — web only, starts here] ────────────────────────────
 
-      // ── Step 1: promo code — instant, no network ────────────────────────────
+      // ── Step 1: promo code — instant UI, then register server-side ─────────
       if (localStorage.getItem("uncorked_promo_access") === "lifetime") {
         setSubStatus("active");
+        // Fire-and-forget: register user in server userStore so scan endpoint
+        // knows this userId exists. The scan endpoint will fall back to Stripe
+        // DB (access_type='lifetime') if userStore marks them trial-expired.
+        fetch(apiUrl(`api/user/${userId}`)).catch(() => {});
         fetch(apiUrl("api/stripe/user"), { method: "POST", headers: { "x-user-id": userId } }).catch(() => {});
         return;
       }

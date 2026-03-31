@@ -67,9 +67,17 @@ const searchLimiter = rateLimit({
   message: { error: "Search limit reached. Please wait before searching again." },
 });
 
+// AI routes each call OpenAI — cap tighter to protect cost + abuse
+const aiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  message: { error: "AI request limit reached. Please wait before trying again." },
+});
+
 app.use("/api/", generalLimiter);
 app.use("/api/scan", scanLimiter);
 app.use("/api/search", searchLimiter);
+app.use("/api/ai", aiLimiter);
 
 // ── X-User-ID validation middleware ──────────────────────────────────────────
 const validateUserId = (req: express.Request, res: express.Response, next: express.NextFunction): void => {
