@@ -536,6 +536,45 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
             >
               Have a promo code?
             </button>
+
+            {/* Legal links — required by Apple App Store guidelines */}
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "center",
+              gap: "0", marginTop: "1.25rem",
+            }}>
+              <a
+                href="/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  fontFamily: "'Inter', sans-serif", fontSize: "0.7rem",
+                  color: "rgba(123,28,52,0.38)", textDecoration: "none",
+                  letterSpacing: "0.02em", padding: "4px 8px",
+                  borderBottom: "1px solid rgba(123,28,52,0.18)",
+                  lineHeight: 1,
+                }}
+              >
+                Privacy Policy
+              </a>
+              <span style={{
+                color: "rgba(123,28,52,0.2)", fontSize: "0.65rem",
+                padding: "0 2px", userSelect: "none",
+              }}>·</span>
+              <a
+                href="/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  fontFamily: "'Inter', sans-serif", fontSize: "0.7rem",
+                  color: "rgba(123,28,52,0.38)", textDecoration: "none",
+                  letterSpacing: "0.02em", padding: "4px 8px",
+                  borderBottom: "1px solid rgba(123,28,52,0.18)",
+                  lineHeight: 1,
+                }}
+              >
+                Terms of Use
+              </a>
+            </div>
           </>
 
         ) : showEmailInput ? (
