@@ -468,7 +468,7 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
             }}>
               {isExpired
                 ? "Subscribe now to restore access"
-                : "7-day free trial included · Cancel anytime"
+                : "14-day free trial included · Cancel anytime"
               }
             </p>
 
@@ -678,7 +678,7 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
             }}>
               {isExpired
                 ? "Subscribe now to restore access"
-                : "7-day free trial included · Cancel anytime"
+                : "14-day free trial included · Cancel anytime"
               }
             </p>
 

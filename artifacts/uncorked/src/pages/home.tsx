@@ -85,7 +85,7 @@ export default function Home() {
 
   const [userId] = useState<string>(getOrCreateUserId);
   const [subStatus, setSubStatus] = useState<"loading" | "trial" | "active" | "expired">("loading");
-  const [trialDaysLeft, setTrialDaysLeft] = useState(7);
+  const [trialDaysLeft, setTrialDaysLeft] = useState(14);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [showPaywallModal, setShowPaywallModal] = useState(false);
   const [showPaywallWithPromo, setShowPaywallWithPromo] = useState(false);
@@ -137,10 +137,10 @@ export default function Home() {
       if (localSubscribed) {
         setSubStatus("active");
       } else {
-        let localDaysLeft = 7;
+        let localDaysLeft = 14;
         if (localTrialStart) {
           const daysElapsed = Math.floor((Date.now() - parseInt(localTrialStart)) / (1000 * 60 * 60 * 24));
-          localDaysLeft = Math.max(0, 7 - daysElapsed);
+          localDaysLeft = Math.max(0, 14 - daysElapsed);
         }
         setSubStatus(localDaysLeft > 0 ? "trial" : "expired");
         setTrialDaysLeft(localDaysLeft);
@@ -160,7 +160,7 @@ export default function Home() {
             setTrialDaysLeft(0);
           } else {
             setSubStatus("trial");
-            setTrialDaysLeft(userData.trialDaysLeft ?? 7);
+            setTrialDaysLeft(userData.trialDaysLeft ?? 14);
           }
         }
       } catch {

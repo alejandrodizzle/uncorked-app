@@ -26,7 +26,7 @@ const SYSTEM_PROMPT =
 
 const ALLOWED_MIME_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/heic"];
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
-const TRIAL_DAYS = 7;
+const TRIAL_DAYS = 14;
 
 router.post(
   "/scan",

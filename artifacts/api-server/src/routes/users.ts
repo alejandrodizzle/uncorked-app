@@ -7,7 +7,7 @@ const router: IRouter = Router();
 // Key: userId, Value: { trialStart, subscribed, scanCount }
 export const userStore = new Map<string, { trialStart: number; subscribed: boolean; scanCount: number }>();
 
-const TRIAL_DAYS = 7;
+const TRIAL_DAYS = 14;
 
 function computeTrialStatus(user: { trialStart: number; subscribed: boolean; scanCount: number }) {
   const trialElapsed = (Date.now() - user.trialStart) / (1000 * 60 * 60 * 24);

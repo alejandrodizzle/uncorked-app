@@ -22,7 +22,7 @@ async function createProducts() {
     console.log('Creating Pocket Somm Premium product...');
     const product = await stripe.products.create({
       name: 'Pocket Somm Premium',
-      description: 'Unlimited wine scans, AI tasting notes, and Vivino ratings. First 7 days free.',
+      description: 'Unlimited wine scans, AI tasting notes, and Vivino ratings. First 14 days free.',
     });
     console.log(`Created product: ${product.name} (${product.id})`);
 

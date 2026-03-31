@@ -81,7 +81,7 @@ export default function TermsOfService() {
         <Section title="3. Subscriptions and Payments">
           <ul style={listStyle}>
             <li style={liStyle}>
-              <strong>Free trial</strong> — new users receive a 7-day free trial with full
+              <strong>Free trial</strong> — new users receive a 14-day free trial with full
               access to all scanning and rating features.
             </li>
             <li style={liStyle}>

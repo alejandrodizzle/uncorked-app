@@ -13,10 +13,10 @@ function getBaseUrl(req: any): string {
 router.get('/stripe/subscription', async (req: any, res) => {
   try {
     const userId = req.headers['x-user-id'] as string;
-    if (!userId) return res.json({ status: 'trial', trialDaysLeft: 7 });
+    if (!userId) return res.json({ status: 'trial', trialDaysLeft: 14 });
 
     const user = await storage.getUser(userId);
-    if (!user) return res.json({ status: 'trial', trialDaysLeft: 7 });
+    if (!user) return res.json({ status: 'trial', trialDaysLeft: 14 });
 
     // Promo code grants lifetime access
     if (user.access_type === 'lifetime') {
@@ -38,7 +38,7 @@ router.get('/stripe/subscription', async (req: any, res) => {
     // Fall back to trial countdown
     const createdAt = new Date(user.created_at);
     const daysSinceCreation = (Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
-    const trialDaysLeft = Math.max(0, Math.ceil(7 - daysSinceCreation));
+    const trialDaysLeft = Math.max(0, Math.ceil(14 - daysSinceCreation));
 
     return res.json({
       status: trialDaysLeft > 0 ? 'trial' : 'expired',
@@ -46,7 +46,7 @@ router.get('/stripe/subscription', async (req: any, res) => {
     });
   } catch (err: any) {
     console.error('Subscription check error:', err);
-    res.json({ status: 'trial', trialDaysLeft: 7 });
+    res.json({ status: 'trial', trialDaysLeft: 14 });
   }
 });
 
