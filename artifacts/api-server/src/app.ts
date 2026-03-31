@@ -23,11 +23,12 @@ app.use((_req, res, next) => {
   res.setHeader(
     "Content-Security-Policy",
     "default-src 'self' https://wine-scan-ai.replit.app; " +
-    "script-src 'self' 'unsafe-inline'; " +
+    "script-src 'self'; " +
     "connect-src 'self' https://api.revenuecat.com https://api.openai.com; " +
     "img-src 'self' data: blob:; " +
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
-    "font-src 'self' https://fonts.gstatic.com;",
+    "font-src 'self' https://fonts.gstatic.com; " +
+    "frame-ancestors 'none';",
   );
   next();
 });
@@ -74,16 +75,25 @@ const aiLimiter = rateLimit({
   message: { error: "AI request limit reached. Please wait before trying again." },
 });
 
+// Promo code redemption — tight cap to prevent brute-force
+const promoLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { error: "Too many redemption attempts. Please try again later." },
+});
+
 app.use("/api/", generalLimiter);
 app.use("/api/scan", scanLimiter);
 app.use("/api/search", searchLimiter);
 app.use("/api/ai", aiLimiter);
+app.use("/api/stripe/redeem-code", promoLimiter);
 
 // ── X-User-ID validation middleware ──────────────────────────────────────────
+// Requires the header to be present AND well-formed (8–100 chars, alphanumeric + hyphens).
 const validateUserId = (req: express.Request, res: express.Response, next: express.NextFunction): void => {
-  const userId = (req.headers["x-user-id"] as string | undefined) || (req.body as any)?.userId;
-  if (userId !== undefined && (typeof userId !== "string" || userId.length > 100 || userId.length < 8)) {
-    res.status(400).json({ error: "Invalid user ID format" });
+  const userId = (req.headers["x-user-id"] as string | undefined) ?? (req.body as Record<string, unknown>)?.userId;
+  if (!userId || typeof userId !== "string" || userId.length < 8 || userId.length > 100) {
+    res.status(401).json({ error: "Missing or invalid user ID" });
     return;
   }
   next();
@@ -91,6 +101,7 @@ const validateUserId = (req: express.Request, res: express.Response, next: expre
 
 app.use("/api/scan", validateUserId);
 app.use("/api/search", validateUserId);
+app.use("/api/ai", validateUserId);
 
 // ─────────────────────────────────────────────────────────────────────────────
 
