@@ -223,7 +223,8 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
       const products: any[] = productsData.data ?? [];
 
       const uncorkedProduct = products.find((p: any) =>
-        p.name?.toLowerCase().includes("uncorked")
+        p.name?.toLowerCase().includes("pocket somm") ||
+        p.name?.toLowerCase().includes("uncorked") // legacy fallback — remove once Stripe product is renamed
       );
 
       if (!uncorkedProduct || !uncorkedProduct.prices?.length) {
