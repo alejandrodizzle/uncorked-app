@@ -1,98 +1,120 @@
 workflows:
-  android-play-store:
-    name: Uncorked Android Play Store
-    max_build_duration: 90
-    instance_type: mac_mini_m2
-    environment:
-      groups:
-        - google_play
-      android_signing:
-        - uncorked_keystore
-      vars:
-        JAVA_HOME: /Library/Java/JavaVirtualMachines/zulu-21.jdk/Contents/Home
-        PACKAGE_NAME: "com.aarenas.uncorked"
-    scripts:
-      - name: Install dependencies
-        script: |
-          cd artifacts/uncorked
-          npm install --legacy-peer-deps
-          mkdir -p android/app/src/main/assets
-          npx cap sync android
-      - name: Build web app
-        script: |
-          cd artifacts/uncorked
-          VITE_API_URL=https://wine-scan-ai.replit.app npx vite build
-      - name: Capacitor sync Android
-        script: |
-          cd artifacts/uncorked
-          mkdir -p android/app/src/main/assets
-          npx cap sync android
-      - name: Set Java version
-        script: |
-          export JAVA_HOME=/Library/Java/JavaVirtualMachines/zulu-21.jdk/Contents/Home
-          echo "JAVA_HOME=$JAVA_HOME" >> $CM_ENV
-          java -version
-      - name: Build Android release
-        script: |
-          export JAVA_HOME=/Library/Java/JavaVirtualMachines/zulu-21.jdk/Contents/Home
-          cd artifacts/uncorked/android
-          ./gradlew bundleRelease
-    artifacts:
-      - artifacts/uncorked/android/app/build/outputs/bundle/release/*.aab
-    publishing:
-      google_play:
-        credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
-        track: internal
-        submit_as_draft: true
+    android-play-store:
+      name: Uncorked Android Play Store
+      max_build_duration: 90
+      instance_type: mac_mini_m2
+      environment:
+        groups:
+          - google_play
+        android_signing:
+          - uncorked_keystore
+        vars:
+          JAVA_HOME: /Library/Java/JavaVirtualMachines/zulu-21.jdk/Contents/Home
+          PACKAGE_NAME: "com.aarenas.uncorked"
+      scripts:
+        - name: Install dependencies
+          script: |
+            cd artifacts/uncorked
+            npm install --legacy-peer-deps
+            mkdir -p android/app/src/main/assets
+            npx cap sync android
+        - name: Build web app
+          script: |
+            cd artifacts/uncorked
+            VITE_API_URL=https://wine-scan-ai.replit.app npx vite build
+        - name: Capacitor sync Android
+          script: |
+            cd artifacts/uncorked
+            mkdir -p android/app/src/main/assets
+            npx cap sync android
+        - name: Inject server.url for Android (loads remote web app)
+          script: |
+            cd artifacts/uncorked
+            node -e "
+              const fs = require('fs');
+              const path = 'android/app/src/main/assets/capacitor.config.json';
+              const config = JSON.parse(fs.readFileSync(path, 'utf8'));
+              config.server = { url: 'https://wine-scan-ai.replit.app', cleartext: false };
+              fs.writeFileSync(path, JSON.stringify(config, null, 2));
+              console.log('Injected server.url for Android: ' + JSON.stringify(config.server));
+            "
+        - name: Set Java version
+          script: |
+            export JAVA_HOME=/Library/Java/JavaVirtualMachines/zulu-21.jdk/Contents/Home
+            echo "JAVA_HOME=$JAVA_HOME" >> $CM_ENV
+            java -version
+        - name: Build Android release
+          script: |
+            export JAVA_HOME=/Library/Java/JavaVirtualMachines/zulu-21.jdk/Contents/Home
+            cd artifacts/uncorked/android
+            ./gradlew bundleRelease
+      artifacts:
+        - artifacts/uncorked/android/app/build/outputs/bundle/release/*.aab
+      publishing:
+        google_play:
+          credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
+          track: internal
+          submit_as_draft: true
 
-  ios-app-store:
-    name: Uncorked iOS App Store
-    max_build_duration: 90
-    instance_type: mac_mini_m2
-    integrations:
-      app_store_connect: Codemagic
-    environment:
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.aarenas.uncorked
-      vars:
-        BUNDLE_ID: "com.aarenas.uncorked"
-        APP_STORE_APP_ID: "6760919192"
-        BUILD_NUMBER: 1
-        XCODE_WORKSPACE: "artifacts/uncorked/ios/App/App.xcworkspace"
-        XCODE_SCHEME: "App"
-    scripts:
-      - name: Install dependencies
-        script: |
-          cd artifacts/uncorked
-          npm install --legacy-peer-deps
-      - name: Build web app
-        script: |
-          cd artifacts/uncorked
-          npx vite build
-      - name: Capacitor sync
-        script: |
-          cd artifacts/uncorked
-          npx cap sync ios
-      - name: Set build number
-        script: |
-          cd artifacts/uncorked/ios/App
-          BUILD_NUM=$(date +%Y%m%d%H%M)
-          agvtool new-version -all $BUILD_NUM
-          echo "Build number set to: $BUILD_NUM"
-      - name: Install pods
-        script: |
-          cd artifacts/uncorked/ios/App && pod install
-      - name: Build iOS
-        script: |
-          xcode-project build-ipa \
-            --workspace artifacts/uncorked/ios/App/App.xcworkspace \
-            --scheme App \
-            --export-options-plist artifacts/uncorked/export_options.plist \
-            --config Release
-    artifacts:
-      - build/ios/ipa/*.ipa
-    publishing:
-      app_store_connect:
-        auth: integration
-        submit_to_testflight: true
+    ios-app-store:
+      name: Uncorked iOS App Store
+      max_build_duration: 90
+      instance_type: mac_mini_m2
+      integrations:
+        app_store_connect: Codemagic
+      environment:
+        ios_signing:
+          distribution_type: app_store
+          bundle_identifier: com.aarenas.uncorked
+        vars:
+          BUNDLE_ID: "com.aarenas.uncorked"
+          APP_STORE_APP_ID: "6760919192"
+          BUILD_NUMBER: 1
+          XCODE_WORKSPACE: "artifacts/uncorked/ios/App/App.xcworkspace"
+          XCODE_SCHEME: "App"
+      scripts:
+        - name: Install dependencies
+          script: |
+            cd artifacts/uncorked
+            npm install --legacy-peer-deps
+        - name: Build web app
+          script: |
+            cd artifacts/uncorked
+            npx vite build
+        - name: Capacitor sync
+          script: |
+            cd artifacts/uncorked
+            npx cap sync ios
+        - name: Remove server.url for iOS (app must load from bundled assets)
+          script: |
+            cd artifacts/uncorked
+            node -e "
+              const fs = require('fs');
+              const config = JSON.parse(fs.readFileSync('ios/App/App/capacitor.config.json', 'utf8'));
+              delete config.server;
+              fs.writeFileSync('ios/App/App/capacitor.config.json', JSON.stringify(config, null, 2));
+              console.log('Removed server from iOS capacitor.config.json');
+            "
+        - name: Set build number
+          script: |
+            cd artifacts/uncorked/ios/App
+            BUILD_NUM=$(date +%Y%m%d%H%M)
+            agvtool new-version -all $BUILD_NUM
+            echo "Build number set to: $BUILD_NUM"
+        - name: Install pods
+          script: |
+            cd artifacts/uncorked/ios/App && pod install
+        - name: Build iOS
+          script: |
+            xcode-project build-ipa \
+              --workspace artifacts/uncorked/ios/App/App.xcworkspace \
+              --scheme App \
+              --export-options-plist artifacts/uncorked/export_options.plist \
+              --config Release
+      artifacts:
+        - build/ios/ipa/*.ipa
+      publishing:
+        app_store_connect:
+          auth: integration
+          submit_to_testflight: true
+  

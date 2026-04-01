@@ -5,9 +5,10 @@ const config: CapacitorConfig = {
   appName: "Pocket Somm",
   webDir: "dist/public",
 
+  // No server.url — iOS loads from bundled dist/public assets.
+  // Android re-injects server.url via Codemagic CI after npx cap sync android.
   server: {
-    url: "https://wine-scan-ai.replit.app",
-    cleartext: false,
+    androidScheme: "https",
   },
 
   plugins: {
