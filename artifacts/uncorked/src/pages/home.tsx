@@ -110,11 +110,39 @@ export default function Home() {
     }
 
     async function initUser() {
-      // ── iOS App Store: all features free, no paywall ────────────────────────
-      // Stripe is disabled for native iOS builds per Apple guidelines.
-      // Remove this block to re-enable Stripe on iOS (e.g. when IAP is ready).
+      // ── iOS: RevenueCat subscription check + trial logic ────────────────────
       if (isNativeIOSBuild()) {
-        setSubStatus("active");
+        // 1. Check RevenueCat for an active "Uncorked Pro" entitlement
+        try {
+          const Purchases = (window as any).Capacitor?.Plugins?.Purchases;
+          if (Purchases) {
+            const customerInfo = await Purchases.getCustomerInfo();
+            const entitlements = customerInfo?.customerInfo?.entitlements?.active;
+            if (entitlements?.["Uncorked Pro"]) {
+              setSubStatus("active");
+              return;
+            }
+          }
+        } catch {
+          // RevenueCat unavailable — fall through to trial logic
+        }
+
+        // 2. Not subscribed — check trial countdown from localStorage
+        const trialStart = localStorage.getItem("uncorked_trial_start");
+        if (!trialStart) {
+          localStorage.setItem("uncorked_trial_start", Date.now().toString());
+          setTrialDaysLeft(14);
+          setSubStatus("trial");
+          return;
+        }
+        const elapsed = (Date.now() - parseInt(trialStart)) / (1000 * 60 * 60 * 24);
+        const daysLeft = Math.max(0, Math.ceil(14 - elapsed));
+        if (daysLeft > 0) {
+          setTrialDaysLeft(daysLeft);
+          setSubStatus("trial");
+        } else {
+          setSubStatus("expired");
+        }
         return;
       }
       // ── [STRIPE PAYWALL — web only, starts here] ────────────────────────────
