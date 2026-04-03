@@ -412,18 +412,21 @@ export default function Home() {
             🍷 {trialDaysLeft} day{trialDaysLeft !== 1 ? "s" : ""} left in your free trial
           </span>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <button
-              onClick={() => { setShowPaywallWithPromo(true); setShowPaywallModal(true); }}
-              style={{
-                background: "none", border: "none",
-                fontFamily: "'Inter', sans-serif", fontSize: "0.65rem",
-                color: "rgba(255,255,255,0.75)", cursor: "pointer",
-                textDecoration: "underline", textDecorationStyle: "dotted",
-                padding: "2px", letterSpacing: "0.01em",
-              }}
-            >
-              Have a code?
-            </button>
+            {/* Hidden on iOS — custom promo codes violate App Store guidelines */}
+            {!isNativeIOSBuild() && (
+              <button
+                onClick={() => { setShowPaywallWithPromo(true); setShowPaywallModal(true); }}
+                style={{
+                  background: "none", border: "none",
+                  fontFamily: "'Inter', sans-serif", fontSize: "0.65rem",
+                  color: "rgba(255,255,255,0.75)", cursor: "pointer",
+                  textDecoration: "underline", textDecorationStyle: "dotted",
+                  padding: "2px", letterSpacing: "0.01em",
+                }}
+              >
+                Have a code?
+              </button>
+            )}
             <button
               onClick={() => setShowPaywallModal(true)}
               style={{

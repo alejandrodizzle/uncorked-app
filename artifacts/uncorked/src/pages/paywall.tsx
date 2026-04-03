@@ -332,8 +332,8 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
           ))}
         </div>
 
-        {/* ── Promo code view (shared iOS + web) ── */}
-        {showPromoInput ? (
+        {/* ── Promo code view (web/Android only — hidden on iOS per App Store guidelines) ── */}
+        {showPromoInput && !nativeIOS ? (
           <>
             {promoSuccess ? (
               <div style={{
@@ -524,19 +524,21 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
               {restoreLoading ? "Restoring…" : "Restore Purchases"}
             </button>
 
-            {/* Promo code link */}
-            <button
-              onClick={() => setShowPromoInput(true)}
-              style={{
-                marginTop: "0.5rem", background: "none", border: "none",
-                fontFamily: "'Inter', sans-serif", fontSize: "0.8rem",
-                color: "rgba(123,28,52,0.45)", cursor: "pointer",
-                textDecoration: "underline", textDecorationStyle: "dotted",
-                letterSpacing: "0.01em", padding: "4px",
-              }}
-            >
-              Have a promo code?
-            </button>
+            {/* Promo code link — hidden on iOS per App Store guidelines */}
+            {!nativeIOS && (
+              <button
+                onClick={() => setShowPromoInput(true)}
+                style={{
+                  marginTop: "0.5rem", background: "none", border: "none",
+                  fontFamily: "'Inter', sans-serif", fontSize: "0.8rem",
+                  color: "rgba(123,28,52,0.45)", cursor: "pointer",
+                  textDecoration: "underline", textDecorationStyle: "dotted",
+                  letterSpacing: "0.01em", padding: "4px",
+                }}
+              >
+                Have a promo code?
+              </button>
+            )}
 
             {/* Legal links — required by Apple App Store guidelines */}
             <div style={{
@@ -701,19 +703,21 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
               {isExpired ? "Subscribe Now" : "Start Free Trial"}
             </button>
 
-            {/* Promo code link */}
-            <button
-              onClick={() => { setShowPromoInput(true); setShowEmailInput(true); }}
-              style={{
-                marginTop: "0.875rem", background: "none", border: "none",
-                fontFamily: "'Inter', sans-serif", fontSize: "0.8rem",
-                color: "rgba(123,28,52,0.45)", cursor: "pointer",
-                textDecoration: "underline", textDecorationStyle: "dotted",
-                letterSpacing: "0.01em", padding: "4px",
-              }}
-            >
-              Have a promo code?
-            </button>
+            {/* Promo code link — hidden on iOS per App Store guidelines */}
+            {!nativeIOS && (
+              <button
+                onClick={() => { setShowPromoInput(true); setShowEmailInput(true); }}
+                style={{
+                  marginTop: "0.875rem", background: "none", border: "none",
+                  fontFamily: "'Inter', sans-serif", fontSize: "0.8rem",
+                  color: "rgba(123,28,52,0.45)", cursor: "pointer",
+                  textDecoration: "underline", textDecorationStyle: "dotted",
+                  letterSpacing: "0.01em", padding: "4px",
+                }}
+              >
+                Have a promo code?
+              </button>
+            )}
           </>
         )}
 
