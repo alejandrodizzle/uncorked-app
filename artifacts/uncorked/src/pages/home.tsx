@@ -503,6 +503,7 @@ export default function Home() {
           <HomeTab
             error={error}
             onScanClick={handleScanAttempt}
+            userId={userId}
             onSelectWine={(wine) => {
               window.history.pushState({ screen: "detail" }, "");
               setDetailWine(wine);
@@ -602,10 +603,12 @@ function HomeTab({
   error,
   onScanClick,
   onSelectWine,
+  userId,
 }: {
   error: string | null;
   onScanClick: () => void;
   onSelectWine: (w: SearchResult) => void;
+  userId: string;
 }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -630,7 +633,7 @@ function HomeTab({
       try {
         const res = await fetch(apiUrl("api/search"), {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "x-user-id": userId },
           body: JSON.stringify({ query: query.trim() }),
         });
         const data = await res.json() as { results: SearchResult[]; searchError?: string | null };
