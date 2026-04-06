@@ -630,22 +630,38 @@ function HomeTab({
     setSearchStatus("loading");
     setSearchError(null);
     debounceRef.current = setTimeout(async () => {
-      try {
-        const res = await fetch(apiUrl("api/search"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-user-id": userId },
-          body: JSON.stringify({ query: query.trim() }),
-        });
-        const data = await res.json() as { results: SearchResult[]; searchError?: string | null };
-        setResults(data.results ?? []);
-        setShowDropdown((data.results ?? []).length > 0);
-        if (data.searchError) setSearchError(data.searchError);
-      } catch (e) {
-        setResults([]);
-        setShowDropdown(false);
-        setSearchError(e instanceof Error ? e.message : "Search request failed — check connection");
+      const effectiveUserId = userId || localStorage.getItem("uncorked_user_id") || "";
+
+      async function doSearch(id: string) {
+        try {
+          const res = await fetch(apiUrl("api/search"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-user-id": id },
+            body: JSON.stringify({ query: query.trim() }),
+          });
+          const data = await res.json() as { results: SearchResult[]; searchError?: string | null };
+          setResults(data.results ?? []);
+          setShowDropdown((data.results ?? []).length > 0);
+          if (data.searchError) setSearchError(data.searchError);
+        } catch (e) {
+          setResults([]);
+          setShowDropdown(false);
+          setSearchError(e instanceof Error ? e.message : "Search request failed — check connection");
+        }
+        setSearchStatus("done");
       }
-      setSearchStatus("done");
+
+      if (!effectiveUserId || effectiveUserId.length < 8) {
+        // userId not ready yet — retry once after a short delay
+        debounceRef.current = setTimeout(() => {
+          const retryId = localStorage.getItem("uncorked_user_id") || "";
+          if (retryId.length >= 8) doSearch(retryId);
+          else setSearchStatus("done");
+        }, 500);
+        return;
+      }
+
+      doSearch(effectiveUserId);
     }, 420);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [query]);
