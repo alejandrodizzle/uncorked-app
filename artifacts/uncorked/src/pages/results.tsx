@@ -544,10 +544,19 @@ function WineCard({
               ) : <NotRated />}
           </div>
           <div style={{ width: "1px", height: "20px", backgroundColor: "rgba(123,28,52,0.1)" }} />
-          {criticStatus === "loading" ? <AIScoreSkeleton /> :
-            criticScore?.criticScore != null
-              ? <CriticScoreBadge score={criticScore.criticScore} label={criticScore.criticScoreLabel ?? null} />
-              : null}
+          {criticStatus === "loading" ? <AIScoreSkeleton /> : (() => {
+            // Real critic score, or Vivino-derived estimate when critic is null
+            const realScore = criticScore?.criticScore ?? null;
+            const vivinoVal = vivinoRating?.rating ?? null;
+            const displayScore = realScore !== null ? realScore
+              : vivinoVal != null ? Math.min(100, Math.round((vivinoVal - 2.5) / 2.5 * 40 + 75)) : null;
+            const displayLabel = realScore !== null ? (criticScore?.criticScoreLabel ?? null)
+              : vivinoVal != null ? "est." : null;
+            const isEst = realScore === null && displayScore !== null;
+            return displayScore != null
+              ? <CriticScoreBadge score={displayScore} label={displayLabel} isEstimated={isEst} />
+              : null;
+          })()}
         </div>
 
         {/* Community score row */}
@@ -680,8 +689,9 @@ function WineCard({
 
 // ─── Score badges ─────────────────────────────────────────────────────────────
 
-function CriticScoreBadge({ score, label }: { score: number; label: string | null }) {
-  const color = score >= 95 ? "#b8860b" : score >= 90 ? "#c9a84c" : score >= 85 ? "#a08030" : "rgba(123,28,52,0.45)";
+function CriticScoreBadge({ score, label, isEstimated }: { score: number; label: string | null; isEstimated?: boolean }) {
+  const color = isEstimated ? "rgba(123,28,52,0.38)"
+    : score >= 95 ? "#b8860b" : score >= 90 ? "#c9a84c" : score >= 85 ? "#a08030" : "rgba(123,28,52,0.45)";
   return (
     <div className="flex items-center gap-1.5">
       <div className="flex flex-col items-center px-2 py-0.5 rounded-md"
@@ -690,12 +700,12 @@ function CriticScoreBadge({ score, label }: { score: number; label: string | nul
           CRITIC
         </span>
         {label && (
-          <span style={{ fontSize: "0.5rem", color: "rgba(123,28,52,0.4)", fontFamily: "'Inter', sans-serif", lineHeight: 1.2 }}>
+          <span style={{ fontSize: "0.5rem", color: "rgba(123,28,52,0.4)", fontFamily: "'Inter', sans-serif", lineHeight: 1.2, fontStyle: isEstimated ? "italic" : "normal" }}>
             {label}
           </span>
         )}
       </div>
-      <span style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: "1.25rem", fontWeight: 700, color, lineHeight: 1 }}>
+      <span style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: "1.25rem", fontWeight: 700, color, lineHeight: 1, fontStyle: isEstimated ? "italic" : "normal" }}>
         {score}
       </span>
       <span style={{ fontSize: "0.65rem", color: "rgba(123,28,52,0.4)", fontFamily: "'Inter', sans-serif" }}>/100</span>

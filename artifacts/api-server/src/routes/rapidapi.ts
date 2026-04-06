@@ -247,8 +247,8 @@ router.post("/ratings/critic", async (req, res): Promise<void> => {
   try {
     const wineName = vintage ? `${name} ${vintage}` : name;
 
-    const criticPrompt = `You are a wine database expert. For the wine "${wineName}", provide known critic scores ONLY if you are highly confident they are accurate.
-If you are not certain of a score, return null for that publication.
+    const criticPrompt = `You are a wine database expert. For the wine "${wineName}", provide known critic scores ONLY if you are confident they are accurate.
+If you are not certain of a score for a specific publication, return null for that publication.
 
 Return ONLY this JSON:
 {
@@ -263,10 +263,14 @@ Return ONLY this JSON:
 }
 
 confidence must be exactly "high", "medium", or "low":
-- "high": well-known wine with widely published scores you are certain of
-- "medium": wine you have some knowledge of but are less certain
-- "low": obscure wine where you are guessing
+- "high": iconic or widely-reviewed wine with extensively documented scores.
+  Famous wines such as Opus One, Caymus, Silver Oak, Château Margaux, Penfolds Grange,
+  Sassicaia, Screaming Eagle, Domaine de la Romanée-Conti, Petrus, and any wine with
+  100+ professional reviews should use "high" confidence.
+- "medium": wine you have knowledge of but are not certain of exact vintage-level scores
+- "low": truly obscure wine with very limited critical coverage where you would be guessing
 
+For well-known producers and famous appellations, lean toward "high" or "medium" rather than "low".
 Return ONLY the JSON, no other text.`;
 
     const completion = await openai.chat.completions.create({

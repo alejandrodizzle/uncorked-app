@@ -209,17 +209,29 @@ export default function WineDetailScreen({ wine, savedWines, onSaveToggle, onHom
             na="Not rated"
           />
 
-          {/* Critic Score — GPT-4o multi-publication average */}
-          <RatingCard
-            label="🏆 CRITIC"
-            labelColor="#c9a84c"
-            loading={loadingCritic}
-            score={criticRating?.criticScore != null ? String(criticRating.criticScore) : null}
-            suffix="/100"
-            subtitle={criticRating?.criticScoreLabel ?? "critics"}
-            tooltip="Averaged from Wine Spectator, Wine Enthusiast, James Suckling, Robert Parker, Vinous, Decanter & Jancis Robinson"
-            na="N/A"
-          />
+          {/* Critic Score — GPT-4o multi-publication average, with Vivino-derived fallback */}
+          {(() => {
+            const realCritic = criticRating?.criticScore ?? null;
+            const vivinoVal = vivinoRating?.rating ?? null;
+            const criticDisplay = realCritic !== null ? realCritic
+              : vivinoVal != null && !loadingCritic ? Math.min(100, Math.round((vivinoVal - 2.5) / 2.5 * 40 + 75)) : null;
+            const criticSub = realCritic !== null ? (criticRating?.criticScoreLabel ?? "critics")
+              : vivinoVal != null && !loadingCritic ? "est." : "critics";
+            const isEst = realCritic === null && criticDisplay !== null;
+            return (
+              <RatingCard
+                label="🏆 CRITIC"
+                labelColor="#c9a84c"
+                loading={loadingCritic}
+                score={criticDisplay !== null ? String(criticDisplay) : null}
+                suffix="/100"
+                subtitle={criticSub}
+                tooltip="Averaged from Wine Spectator, Wine Enthusiast, James Suckling, Robert Parker, Vinous, Decanter & Jancis Robinson"
+                na="N/A"
+                estimated={isEst}
+              />
+            );
+          })()}
 
           {/* Community Score — CellarTracker */}
           <RatingCard
@@ -895,11 +907,11 @@ function MerchantSheet({
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function RatingCard({
-  label, labelColor, loading, score, suffix, subtitle, tooltip, na,
+  label, labelColor, loading, score, suffix, subtitle, tooltip, na, estimated,
 }: {
   label: string; labelColor: string; loading: boolean;
   score: string | null; suffix: string; subtitle: string;
-  tooltip?: string; na: string;
+  tooltip?: string; na: string; estimated?: boolean;
 }) {
   const [showTip, setShowTip] = useState(false);
   return (
@@ -943,14 +955,16 @@ function RatingCard({
         <>
           <div style={{
             fontFamily: "'Cormorant Garamond', Georgia, serif",
-            fontSize: "1.6rem", fontWeight: 700, color: "#7b1c34", lineHeight: 1,
+            fontSize: "1.6rem", fontWeight: 700, lineHeight: 1,
+            color: estimated ? "rgba(123,28,52,0.42)" : "#7b1c34",
+            fontStyle: estimated ? "italic" : "normal",
           }}>
             {score}
           </div>
           <div style={{ fontSize: "0.6rem", color: "rgba(123,28,52,0.38)", fontFamily: "'Inter', sans-serif", marginTop: "2px" }}>
             {suffix}
           </div>
-          <div style={{ fontSize: "0.55rem", color: "rgba(123,28,52,0.35)", fontFamily: "'Inter', sans-serif", marginTop: "2px", lineHeight: 1.3 }}>
+          <div style={{ fontSize: "0.55rem", color: "rgba(123,28,52,0.35)", fontFamily: "'Inter', sans-serif", marginTop: "2px", lineHeight: 1.3, fontStyle: estimated ? "italic" : "normal" }}>
             {subtitle}
           </div>
         </>
