@@ -247,8 +247,10 @@ router.post("/ratings/critic", async (req, res): Promise<void> => {
   try {
     const wineName = vintage ? `${name} ${vintage}` : name;
 
-    const criticPrompt = `You are a wine database expert. For the wine "${wineName}", provide the most accurate known critic scores from these publications if they exist.
-Return ONLY a JSON object with numeric scores (integers 1-100) or null if unknown:
+    const criticPrompt = `You are a wine database expert. For the wine "${wineName}", provide known critic scores ONLY if you are highly confident they are accurate.
+If you are not certain of a score, return null for that publication.
+
+Return ONLY this JSON:
 {
   "wine_spectator": null,
   "wine_enthusiast": null,
@@ -256,14 +258,21 @@ Return ONLY a JSON object with numeric scores (integers 1-100) or null if unknow
   "robert_parker": null,
   "vinous": null,
   "decanter": null,
-  "jancis_robinson": null
+  "jancis_robinson": null,
+  "confidence": "high"
 }
-Return ONLY the JSON object, no other text.`;
+
+confidence must be exactly "high", "medium", or "low":
+- "high": well-known wine with widely published scores you are certain of
+- "medium": wine you have some knowledge of but are less certain
+- "low": obscure wine where you are guessing
+
+Return ONLY the JSON, no other text.`;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [{ role: "user", content: criticPrompt }],
-      max_tokens: 150,
+      max_tokens: 180,
       response_format: { type: "json_object" },
     });
 
@@ -279,21 +288,24 @@ Return ONLY the JSON object, no other text.`;
       result.jancis_robinson,
     ].filter((s): s is number => typeof s === "number" && s > 0 && s <= 100);
 
-    const criticScore = scores.length > 0
+    const confidence = typeof result.confidence === "string" ? result.confidence : "low";
+
+    // Only show critic score if confidence is medium or high AND at least 2 sources returned a score
+    const meetsThreshold = confidence !== "low" && scores.length >= 2;
+
+    const criticScore = meetsThreshold
       ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
       : null;
 
-    const criticScoreCount = scores.length;
-    const criticScoreLabel = scores.length > 1
-      ? `${scores.length} critics`
-      : scores.length === 1
-        ? "1 critic"
-        : null;
-
-    res.json({ criticScore, criticScoreCount, criticScoreLabel });
+    res.json({
+      criticScore,
+      criticScoreCount: meetsThreshold ? scores.length : 0,
+      criticScoreLabel: meetsThreshold ? `${scores.length} critics` : null,
+      criticConfidence: confidence,
+    });
   } catch (err) {
     console.error("Critic score error:", err);
-    res.json({ criticScore: null, criticScoreCount: 0, criticScoreLabel: null });
+    res.json({ criticScore: null, criticScoreCount: 0, criticScoreLabel: null, criticConfidence: "low" });
   }
 });
 
