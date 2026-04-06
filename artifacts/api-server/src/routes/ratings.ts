@@ -1,4 +1,18 @@
 import { Router, type IRouter } from "express";
+import OpenAI from "openai";
+
+const RAPIDAPI_WINE_EXPLORER_HOST = "wine-explorer-api-ratings-insights-and-search.p.rapidapi.com";
+
+interface WESearchItem { [name: string]: string; }
+interface WESearchResponse { items?: WESearchItem[]; }
+interface WEVintage { year?: string; statistics?: { ratings_average?: number; ratings_count?: number; }; }
+interface WEInfoResponse { vintages?: WEVintage[]; statistics?: { ratings_average?: number; ratings_count?: number; }; }
+
+function getOpenAI(): OpenAI {
+  const apiKey = process.env["OPENAI_API_KEY"];
+  if (!apiKey) throw new Error("OPENAI_API_KEY not set");
+  return new OpenAI({ apiKey });
+}
 
 const router: IRouter = Router();
 
@@ -205,6 +219,116 @@ async function searchVivinoPage(
   };
 }
 
+// ─── Fallback helpers for Vivino rating ───────────────────────────────────────
+
+function cleanWineNameForSearch(name: string): string {
+  return name
+    .replace(/\b(vineyard|vineyards|winery|estate|estates|cellars|cellar)\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function searchVivinoWithVariants(
+  name: string,
+  vintage: number | null,
+): Promise<{ rating: number | null; ratingsCount: number | null; wineId: number | null; matchedName: string | null }> {
+  const cleaned = cleanWineNameForSearch(name);
+  const queries: Array<[string, number | null]> = [
+    [name, vintage],
+    [name, null],
+  ];
+  if (cleaned !== name) {
+    queries.push([cleaned, vintage]);
+    queries.push([cleaned, null]);
+  }
+  for (const [n, v] of queries) {
+    try {
+      const result = await searchVivinoPage(n, v);
+      if (result.rating !== null) return result;
+    } catch { /* try next variant */ }
+  }
+  return { rating: null, ratingsCount: null, wineId: null, matchedName: null };
+}
+
+async function fetchVivinoViaWineExplorer(
+  name: string,
+  vintage: number | null,
+  apiKey: string,
+): Promise<{ rating: number | null; ratingsCount: number | null }> {
+  try {
+    const headers = {
+      "X-RapidAPI-Key": apiKey,
+      "X-RapidAPI-Host": RAPIDAPI_WINE_EXPLORER_HOST,
+      Accept: "application/json",
+    };
+    const query = vintage ? `${name} ${vintage}` : name;
+    const searchRes = await fetch(
+      `https://${RAPIDAPI_WINE_EXPLORER_HOST}/search?wine_name=${encodeURIComponent(query)}`,
+      { headers, signal: AbortSignal.timeout(10000) },
+    );
+    if (!searchRes.ok) return { rating: null, ratingsCount: null };
+    const searchData = await searchRes.json() as WESearchResponse;
+    const items = searchData.items ?? [];
+    if (items.length === 0) return { rating: null, ratingsCount: null };
+    const wineId = Object.values(items[0])[0];
+    if (!wineId) return { rating: null, ratingsCount: null };
+    const infoRes = await fetch(
+      `https://${RAPIDAPI_WINE_EXPLORER_HOST}/info?_id=${wineId}`,
+      { headers, signal: AbortSignal.timeout(10000) },
+    );
+    if (!infoRes.ok) return { rating: null, ratingsCount: null };
+    const info = await infoRes.json() as WEInfoResponse;
+    let avg = 0;
+    let count: number | null = null;
+    if (vintage && info.vintages?.length) {
+      const match = info.vintages.find((v) => String(v.year) === String(vintage));
+      avg = match?.statistics?.ratings_average ?? info.statistics?.ratings_average ?? 0;
+      count = match?.statistics?.ratings_count ?? info.statistics?.ratings_count ?? null;
+    } else {
+      avg = info.statistics?.ratings_average ?? 0;
+      count = info.statistics?.ratings_count ?? null;
+    }
+    if (avg <= 0) return { rating: null, ratingsCount: null };
+    return { rating: Math.round(avg * 10) / 10, ratingsCount: count };
+  } catch {
+    return { rating: null, ratingsCount: null };
+  }
+}
+
+async function estimateVivinoViaGPT(
+  name: string,
+  vintage: number | null,
+  region: string | null,
+  grape: string | null,
+): Promise<number | null> {
+  let openai: OpenAI;
+  try { openai = getOpenAI(); } catch { return null; }
+  const wineDesc = [
+    vintage ? `${name} ${vintage}` : name,
+    region ? `from ${region}` : null,
+    grape ? `(${grape})` : null,
+  ].filter(Boolean).join(" ");
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      max_tokens: 10,
+      messages: [
+        {
+          role: "system",
+          content: "You are a wine expert. Estimate this wine's likely Vivino community score on a 1.0–5.0 scale based on the producer's reputation and typical scores for this style and region. Reply with ONLY a decimal number between 1.0 and 5.0. If unknown, reply 3.7.",
+        },
+        { role: "user", content: wineDesc },
+      ],
+    });
+    const text = response.choices[0]?.message?.content?.trim() ?? "";
+    const num = parseFloat(text);
+    if (!isNaN(num) && num >= 1.0 && num <= 5.0) return Math.round(num * 10) / 10;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 router.post("/ratings/cellartracker", async (req, res): Promise<void> => {
   const { name, vintage } = req.body as { name?: string; vintage?: number | null };
   if (!name) { res.status(400).json({ error: "Wine name is required" }); return; }
@@ -231,9 +355,11 @@ router.post("/ratings/cellartracker", async (req, res): Promise<void> => {
 });
 
 router.post("/ratings/vivino", async (req, res): Promise<void> => {
-  const { name, vintage } = req.body as {
+  const { name, vintage, region, grape } = req.body as {
     name?: string;
     vintage?: number | null;
+    region?: string | null;
+    grape?: string | null;
   };
 
   if (!name) {
@@ -242,11 +368,34 @@ router.post("/ratings/vivino", async (req, res): Promise<void> => {
   }
 
   try {
-    const result = await searchVivinoPage(name, vintage ?? null);
-    res.json(result);
+    // Attempt 1: Vivino web scrape with multiple query variants
+    const scrapeResult = await searchVivinoWithVariants(name, vintage ?? null);
+    if (scrapeResult.rating !== null) {
+      res.json(scrapeResult);
+      return;
+    }
+
+    // Attempt 2: Wine Explorer RapidAPI (Vivino community data via proper API)
+    const rapidApiKey = process.env["RAPIDAPI_KEY"];
+    if (rapidApiKey) {
+      const explorerResult = await fetchVivinoViaWineExplorer(name, vintage ?? null, rapidApiKey);
+      if (explorerResult.rating !== null) {
+        res.json({ ...explorerResult, wineId: null, matchedName: null });
+        return;
+      }
+    }
+
+    // Attempt 3: GPT-4o estimate (labeled "EST." on the frontend)
+    const estimatedRating = await estimateVivinoViaGPT(name, vintage ?? null, region ?? null, grape ?? null);
+    if (estimatedRating !== null) {
+      res.json({ rating: estimatedRating, ratingsCount: null, wineId: null, matchedName: null, isEstimated: true });
+      return;
+    }
+
+    // No rating found — frontend shows "—"
+    res.json({ rating: null, ratingsCount: null, wineId: null, matchedName: null });
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Failed to fetch Vivino data";
+    const message = err instanceof Error ? err.message : "Failed to fetch Vivino data";
     res.status(500).json({ error: message });
   }
 });

@@ -9,6 +9,7 @@ type VivinoRating = {
   rating: number | null;
   ratingsCount: number | null;
   wineId: number | null;
+  isEstimated?: boolean;
 };
 
 type AIAnalysis = {
@@ -75,7 +76,7 @@ export default function ResultsScreen({ wines, savedWines, onSaveToggle, onHome,
       fetch(apiUrl("api/ratings/vivino"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: wine.name, vintage: wine.vintage, menuPrice: wine.menuPrice, grape: wine.grape }),
+        body: JSON.stringify({ name: wine.name, vintage: wine.vintage, region: wine.region, grape: wine.grape, menuPrice: wine.menuPrice }),
       })
         .then((r) => r.json())
         .then((data: VivinoRating) => {
@@ -539,7 +540,7 @@ function WineCard({
             <VivinoLogo />
             {vivinoStatus === "loading" ? <VivinoSkeleton /> :
               vivinoRating?.rating != null ? (
-                <VivinoRatingBadge rating={vivinoRating.rating} ratingsCount={vivinoRating.ratingsCount} />
+                <VivinoRatingBadge rating={vivinoRating.rating} ratingsCount={vivinoRating.ratingsCount} isEstimated={vivinoRating.isEstimated} />
               ) : <NotRated />}
           </div>
           <div style={{ width: "1px", height: "20px", backgroundColor: "rgba(123,28,52,0.1)" }} />
@@ -755,7 +756,7 @@ function VivinoLogo() {
   );
 }
 
-function VivinoRatingBadge({ rating, ratingsCount }: { rating: number; ratingsCount: number | null }) {
+function VivinoRatingBadge({ rating, ratingsCount, isEstimated }: { rating: number; ratingsCount: number | null; isEstimated?: boolean }) {
   const stars = Math.round(rating * 2) / 2;
   const fullStars = Math.floor(stars);
   const hasHalf = stars - fullStars >= 0.5;
@@ -788,7 +789,12 @@ function VivinoRatingBadge({ rating, ratingsCount }: { rating: number; ratingsCo
           );
         })}
       </div>
-      {ratingsCount != null && (
+      {isEstimated && (
+        <span style={{ fontSize: "0.62rem", color: "rgba(123,28,52,0.45)", fontFamily: "'Inter', sans-serif", fontStyle: "italic", letterSpacing: "0.03em" }}>
+          EST.
+        </span>
+      )}
+      {!isEstimated && ratingsCount != null && (
         <span style={{ fontSize: "0.7rem", color: "rgba(123,28,52,0.45)", fontFamily: "'Inter', sans-serif" }}>
           {ratingsCount >= 1000 ? `${(ratingsCount / 1000).toFixed(1)}k` : ratingsCount} ratings
         </span>
@@ -807,7 +813,7 @@ function VivinoSkeleton() {
 }
 
 function NotRated() {
-  return <span style={{ fontSize: "0.75rem", color: "rgba(123,28,52,0.38)", fontFamily: "'Inter', sans-serif", fontStyle: "italic" }}>Not rated</span>;
+  return <span style={{ fontSize: "0.85rem", color: "rgba(123,28,52,0.3)", fontFamily: "'Inter', sans-serif" }}>—</span>;
 }
 
 // ─── Shimmer ──────────────────────────────────────────────────────────────────
