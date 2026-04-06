@@ -38,7 +38,7 @@ function extractJsonObject(str: string, startIdx: number): string | null {
 
 async function searchVivino(query: string): Promise<SearchResult[]> {
   const url = `https://www.vivino.com/search/wines?q=${encodeURIComponent(query)}`;
-  const response = await fetch(url, { headers: VIVINO_HEADERS, redirect: "follow" });
+  const response = await fetch(url, { headers: VIVINO_HEADERS, redirect: "follow", signal: AbortSignal.timeout(10000) });
   if (!response.ok) return [];
 
   const html = await response.text();
@@ -107,23 +107,33 @@ async function searchVivino(query: string): Promise<SearchResult[]> {
 async function searchRapidAPI(query: string): Promise<SearchResult[]> {
   const key = process.env.RAPIDAPI_KEY;
   if (!key) return [];
+  const HOST = "wine-explorer-api-ratings-insights-and-search.p.rapidapi.com";
   try {
     const res = await fetch(
-      `https://wine-explorer.p.rapidapi.com/search?wine_name=${encodeURIComponent(query)}`,
-      { headers: { "X-RapidAPI-Key": key, "X-RapidAPI-Host": "wine-explorer.p.rapidapi.com" } }
+      `https://${HOST}/search?wine_name=${encodeURIComponent(query)}`,
+      {
+        headers: { "X-RapidAPI-Key": key, "X-RapidAPI-Host": HOST },
+        signal: AbortSignal.timeout(8000),
+      }
     );
-    if (!res.ok) return [];
-    const data = await res.json() as { data?: { name?: string; vintage?: number; region?: string; grape?: string }[] };
-    return (data.data ?? []).slice(0, 3).map((w) => ({
-      name: w.name ?? "",
-      vintage: w.vintage ?? null,
-      region: w.region ?? null,
-      grape: w.grape ?? null,
-      vivinoRating: null,
-      vivinoRatingsCount: null,
-      vivinoWineId: null,
-    })).filter((w) => w.name);
-  } catch { return []; }
+    if (!res.ok) {
+      console.error(`Wine Explorer search failed: ${res.status} ${res.statusText}`);
+      return [];
+    }
+    const data = await res.json() as { items?: Record<string, string>[] };
+    const items = data.items ?? [];
+    return items.slice(0, 6).flatMap((item): SearchResult[] => {
+      const rawName = Object.keys(item)[0] ?? "";
+      if (!rawName) return [];
+      const yearMatch = rawName.match(/\b(19|20)\d{2}\b/);
+      const vintage = yearMatch ? parseInt(yearMatch[0]) : null;
+      const name = rawName.replace(/\b(19|20)\d{2}\b/, "").replace(/\s+/g, " ").trim();
+      return [{ name: name || rawName, vintage, region: null, grape: null, vivinoRating: null, vivinoRatingsCount: null, vivinoWineId: null }];
+    }).filter((w) => w.name.length > 0);
+  } catch (err) {
+    console.error("searchRapidAPI error:", err);
+    return [];
+  }
 }
 
 router.post("/search", async (req, res): Promise<void> => {
@@ -147,15 +157,23 @@ router.post("/search", async (req, res): Promise<void> => {
     const vivino = vivinoResults.status === "fulfilled" ? vivinoResults.value : [];
     const rapid = rapidResults.status === "fulfilled" ? rapidResults.value : [];
 
+    if (vivinoResults.status === "rejected") console.error("Vivino search rejected:", vivinoResults.reason);
+    if (rapidResults.status === "rejected") console.error("RapidAPI search rejected:", rapidResults.reason);
+
     // Merge: prefer Vivino, add RapidAPI results not already covered
     const vivinoNames = new Set(vivino.map((r) => r.name.toLowerCase()));
     const extra = rapid.filter((r) => !vivinoNames.has(r.name.toLowerCase()));
     const combined = [...vivino, ...extra].slice(0, 8);
 
-    res.json({ results: combined });
+    const searchError = vivino.length === 0 && rapid.length === 0
+      ? (vivinoResults.status === "rejected" ? String(vivinoResults.reason) : null)
+      : null;
+
+    res.json({ results: combined, searchError });
   } catch (err) {
     console.error("Search error:", err);
-    res.json({ results: [] });
+    const message = err instanceof Error ? err.message : "Search failed";
+    res.json({ results: [], searchError: message });
   }
 });
 

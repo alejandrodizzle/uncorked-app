@@ -610,6 +610,7 @@ function HomeTab({
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searchStatus, setSearchStatus] = useState<"idle" | "loading" | "done">("idle");
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -620,9 +621,11 @@ function HomeTab({
       setResults([]);
       setShowDropdown(false);
       setSearchStatus("idle");
+      setSearchError(null);
       return;
     }
     setSearchStatus("loading");
+    setSearchError(null);
     debounceRef.current = setTimeout(async () => {
       try {
         const res = await fetch(apiUrl("api/search"), {
@@ -630,10 +633,15 @@ function HomeTab({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ query: query.trim() }),
         });
-        const data = await res.json() as { results: SearchResult[] };
+        const data = await res.json() as { results: SearchResult[]; searchError?: string | null };
         setResults(data.results ?? []);
         setShowDropdown((data.results ?? []).length > 0);
-      } catch { setResults([]); setShowDropdown(false); }
+        if (data.searchError) setSearchError(data.searchError);
+      } catch (e) {
+        setResults([]);
+        setShowDropdown(false);
+        setSearchError(e instanceof Error ? e.message : "Search request failed — check connection");
+      }
       setSearchStatus("done");
     }, 420);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
@@ -836,23 +844,40 @@ function HomeTab({
               </div>
             )}
 
-            {/* Empty state */}
+            {/* Empty state / error state */}
             {searchStatus === "done" && results.length === 0 && query.trim().length >= 3 && (
               <div style={{
                 position: "absolute", top: "calc(100% + 8px)", left: 0, right: 0,
                 backgroundColor: "#fff", borderRadius: "14px",
-                border: "1px solid rgba(123,28,52,0.1)",
+                border: `1px solid ${searchError ? "rgba(123,28,52,0.25)" : "rgba(123,28,52,0.1)"}`,
                 boxShadow: "0 8px 24px rgba(123,28,52,0.08)",
                 zIndex: 50, padding: "1rem",
                 textAlign: "center",
                 animation: "fadeInDown 0.18s ease",
               }}>
-                <p style={{
-                  fontSize: "0.82rem", color: "rgba(123,28,52,0.45)",
-                  fontFamily: "'Inter', sans-serif", fontStyle: "italic",
-                }}>
-                  No wines found for "{query.trim()}"
-                </p>
+                {searchError ? (
+                  <>
+                    <p style={{
+                      fontSize: "0.82rem", color: "#7b1c34",
+                      fontFamily: "'Inter', sans-serif", fontWeight: 600, marginBottom: "4px",
+                    }}>
+                      Search unavailable
+                    </p>
+                    <p style={{
+                      fontSize: "0.72rem", color: "rgba(123,28,52,0.55)",
+                      fontFamily: "'Inter', sans-serif", fontStyle: "italic",
+                    }}>
+                      {searchError}
+                    </p>
+                  </>
+                ) : (
+                  <p style={{
+                    fontSize: "0.82rem", color: "rgba(123,28,52,0.45)",
+                    fontFamily: "'Inter', sans-serif", fontStyle: "italic",
+                  }}>
+                    No wines found for "{query.trim()}"
+                  </p>
+                )}
               </div>
             )}
           </div>
