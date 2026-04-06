@@ -515,6 +515,18 @@ export default function Home() {
             savedWines={savedWines}
             onSaveToggle={handleSaveToggle}
             onHome={goHome}
+            onWineSelect={(wine) => {
+              window.history.pushState({ screen: "detail" }, "");
+              setDetailWine({
+                name: wine.name,
+                vintage: wine.vintage,
+                region: wine.region,
+                grape: wine.grape,
+                vivinoRating: null,
+                vivinoRatingsCount: null,
+                vivinoWineId: null,
+              });
+            }}
           />
         )}
         {activeTab === "saved" && (

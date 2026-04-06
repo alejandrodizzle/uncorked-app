@@ -32,9 +32,10 @@ type Props = {
   savedWines: SavedWine[];
   onSaveToggle: (wine: Wine) => void;
   onHome: () => void;
+  onWineSelect: (wine: Wine) => void;
 };
 
-export default function ResultsScreen({ wines, savedWines, onSaveToggle, onHome }: Props) {
+export default function ResultsScreen({ wines, savedWines, onSaveToggle, onHome, onWineSelect }: Props) {
   const [vivinoRatings, setVivinoRatings] = useState<Record<number, VivinoRating>>({});
   const [vivinoStatus, setVivinoStatus] = useState<Record<number, FetchStatus>>({});
   const [aiAnalyses, setAiAnalyses] = useState<Record<number, AIAnalysis>>({});
@@ -344,6 +345,7 @@ export default function ResultsScreen({ wines, savedWines, onSaveToggle, onHome 
                 cellarStatus={cellarStatus[i] ?? "loading"}
                 isSaved={isSaved(wines[i])}
                 onSaveToggle={() => onSaveToggle(wines[i])}
+                onSelect={() => onWineSelect(wines[i])}
               />
             ))}
           </div>
@@ -400,7 +402,7 @@ function InsightBanner({ insight, status }: { insight: string | null; status: "l
 
 function WineCard({
   wine, index, vivinoRating, vivinoStatus, aiAnalysis, aiStatus, retailPrice, retailStatus,
-  criticScore, criticStatus, cellarScore, cellarStatus, isSaved, onSaveToggle,
+  criticScore, criticStatus, cellarScore, cellarStatus, isSaved, onSaveToggle, onSelect,
 }: {
   wine: Wine;
   index: number;
@@ -416,6 +418,7 @@ function WineCard({
   cellarStatus: FetchStatus;
   isSaved: boolean;
   onSaveToggle: () => void;
+  onSelect: () => void;
 }) {
   const [showNotes, setShowNotes] = useState(false);
   const [showBuyOnline, setShowBuyOnline] = useState(false);
@@ -435,12 +438,23 @@ function WineCard({
   return (
     <div
       className="w-full rounded-2xl overflow-hidden"
+      onClick={onSelect}
       style={{
         backgroundColor: "#fff",
         border: "1px solid rgba(123,28,52,0.08)",
         boxShadow: "0 2px 12px rgba(123,28,52,0.06)",
         animation: "fadeInUp 0.4s ease both",
         animationDelay: `${index * 70}ms`,
+        cursor: "pointer",
+        transition: "transform 0.15s, box-shadow 0.15s",
+      }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLDivElement).style.transform = "translateY(-2px)";
+        (e.currentTarget as HTMLDivElement).style.boxShadow = "0 6px 24px rgba(123,28,52,0.13)";
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLDivElement).style.transform = "";
+        (e.currentTarget as HTMLDivElement).style.boxShadow = "0 2px 12px rgba(123,28,52,0.06)";
       }}
     >
       <div style={{
@@ -491,7 +505,7 @@ function WineCard({
               </div>
             )}
             <button
-              onClick={onSaveToggle}
+              onClick={(e) => { e.stopPropagation(); onSaveToggle(); }}
               title={isSaved ? "Remove bookmark" : "Save wine"}
               style={{
                 background: "none", border: "none", cursor: "pointer", padding: "2px",
@@ -593,7 +607,7 @@ function WineCard({
           </div>
           {hasNotes && (
             <button
-              onClick={() => setShowNotes((p) => !p)}
+              onClick={(e) => { e.stopPropagation(); setShowNotes((p) => !p); }}
               style={{
                 fontSize: "0.68rem", fontFamily: "'Inter', sans-serif",
                 color: showNotes ? "#7b1c34" : "#c9a84c",
@@ -623,7 +637,7 @@ function WineCard({
             )}
           </div>
           <button
-            onClick={() => setShowBuyOnline(true)}
+            onClick={(e) => { e.stopPropagation(); setShowBuyOnline(true); }}
             style={{
               display: "flex", alignItems: "center", gap: "5px",
               padding: "5px 10px", borderRadius: "8px",
