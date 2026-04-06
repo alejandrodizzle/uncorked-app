@@ -15,7 +15,7 @@ type WineDetailAI = {
   valueLabel: "Great Value" | "Fair Price" | "Overpriced" | null;
 };
 
-type CriticRating = { criticScore: number | null; source: string };
+type CriticRating = { criticScore: number | null; criticScoreCount?: number; criticScoreLabel?: string | null; source?: string };
 type CellarRating = { communityScore: number | null; reviewCount: number | null };
 
 type Merchant = { name: string; price: number; location: string; url: string };
@@ -209,15 +209,15 @@ export default function WineDetailScreen({ wine, savedWines, onSaveToggle, onHom
             na="Not rated"
           />
 
-          {/* Critic Score — Wine-Searcher */}
+          {/* Critic Score — GPT-4o multi-publication average */}
           <RatingCard
             label="🏆 CRITIC"
             labelColor="#c9a84c"
             loading={loadingCritic}
             score={criticRating?.criticScore != null ? String(criticRating.criticScore) : null}
             suffix="/100"
-            subtitle="Aggregated critics"
-            tooltip="Aggregated from leading wine critics worldwide via Wine-Searcher"
+            subtitle={criticRating?.criticScoreLabel ?? "critics"}
+            tooltip="Averaged from Wine Spectator, Wine Enthusiast, James Suckling, Robert Parker, Vinous, Decanter & Jancis Robinson"
             na="N/A"
           />
 

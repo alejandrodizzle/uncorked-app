@@ -23,7 +23,7 @@ type RetailPrice = {
   priceRange: string | null;
 };
 
-type CriticScore = { criticScore: number | null };
+type CriticScore = { criticScore: number | null; criticScoreCount?: number; criticScoreLabel?: string | null };
 type CellarScore = { communityScore: number | null; reviewCount: number | null };
 type FetchStatus = "loading" | "done";
 type FilterType = "all" | "90plus" | "best-value" | "top-picks";
@@ -544,28 +544,17 @@ function WineCard({
               ) : <NotRated />}
           </div>
           <div style={{ width: "1px", height: "20px", backgroundColor: "rgba(123,28,52,0.1)" }} />
-          {aiStatus === "loading" ? <AIScoreSkeleton /> :
-            aiAnalysis?.consensusScore != null ? <AIScoreBadge score={aiAnalysis.consensusScore} /> : null}
+          {criticStatus === "loading" ? <AIScoreSkeleton /> :
+            criticScore?.criticScore != null
+              ? <CriticScoreBadge score={criticScore.criticScore} label={criticScore.criticScoreLabel ?? null} />
+              : null}
         </div>
 
-        {/* Critic + Community scores row */}
-        {(criticStatus === "loading" || criticScore?.criticScore != null || cellarStatus === "loading" || cellarScore?.communityScore != null) && (
+        {/* Community score row */}
+        {(cellarStatus === "loading" || cellarScore?.communityScore != null) && (
           <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-            {criticStatus === "loading" ? (
-              <Shimmer width={88} height={13} radius={4} delay="0.1s" />
-            ) : criticScore?.criticScore != null ? (
-              <div className="flex items-center gap-1">
-                <span style={{ fontSize: "0.58rem", fontWeight: 700, color: "#c9a84c", fontFamily: "'Inter', sans-serif", letterSpacing: "0.05em" }}>
-                  🏆 CRITIC
-                </span>
-                <span style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: "1.05rem", fontWeight: 700, color: "#7b1c34", lineHeight: 1 }}>
-                  {criticScore.criticScore}
-                </span>
-                <span style={{ fontSize: "0.58rem", color: "rgba(123,28,52,0.4)", fontFamily: "'Inter', sans-serif" }}>/100</span>
-              </div>
-            ) : null}
             {cellarStatus === "loading" ? (
-              <Shimmer width={100} height={13} radius={4} delay="0.2s" />
+              <Shimmer width={100} height={13} radius={4} delay="0.1s" />
             ) : cellarScore?.communityScore != null ? (
               <div className="flex items-center gap-1">
                 <span style={{ fontSize: "0.58rem", fontWeight: 700, color: "#5a7a5a", fontFamily: "'Inter', sans-serif", letterSpacing: "0.05em" }}>
@@ -691,18 +680,20 @@ function WineCard({
 
 // ─── Score badges ─────────────────────────────────────────────────────────────
 
-function AIScoreBadge({ score }: { score: number }) {
+function CriticScoreBadge({ score, label }: { score: number; label: string | null }) {
   const color = score >= 95 ? "#b8860b" : score >= 90 ? "#c9a84c" : score >= 85 ? "#a08030" : "rgba(123,28,52,0.45)";
   return (
     <div className="flex items-center gap-1.5">
-      <div className="flex items-center gap-1 px-2 py-0.5 rounded-md"
+      <div className="flex flex-col items-center px-2 py-0.5 rounded-md"
         style={{ backgroundColor: "rgba(201,168,76,0.12)", border: "1px solid rgba(201,168,76,0.35)" }}>
-        <svg width="9" height="9" viewBox="0 0 24 24" fill="#c9a84c">
-          <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z" />
-        </svg>
-        <span style={{ fontSize: "0.65rem", fontWeight: 700, color: "#c9a84c", fontFamily: "'Inter', sans-serif", letterSpacing: "0.04em" }}>
-          AI EST.
+        <span style={{ fontSize: "0.6rem", fontWeight: 700, color: "#c9a84c", fontFamily: "'Inter', sans-serif", letterSpacing: "0.04em", lineHeight: 1.3 }}>
+          CRITIC
         </span>
+        {label && (
+          <span style={{ fontSize: "0.5rem", color: "rgba(123,28,52,0.4)", fontFamily: "'Inter', sans-serif", lineHeight: 1.2 }}>
+            {label}
+          </span>
+        )}
       </div>
       <span style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: "1.25rem", fontWeight: 700, color, lineHeight: 1 }}>
         {score}

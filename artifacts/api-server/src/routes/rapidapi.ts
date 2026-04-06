@@ -237,13 +237,63 @@ router.post("/market/prices", async (req, res): Promise<void> => {
 router.post("/ratings/critic", async (req, res): Promise<void> => {
   const { name, vintage } = req.body as { name?: string; vintage?: number | null };
   if (!name) { res.status(400).json({ error: "Wine name is required" }); return; }
-  const rapidApiKey = process.env["RAPIDAPI_KEY"];
-  if (!rapidApiKey) { res.json({ criticScore: null, source: "Wine-Searcher" }); return; }
+
+  let openai: OpenAI;
+  try { openai = getOpenAI(); } catch {
+    res.json({ criticScore: null, criticScoreCount: 0, criticScoreLabel: null });
+    return;
+  }
+
   try {
-    const result = await fetchWineExplorer(name, vintage ?? null, rapidApiKey);
-    res.json({ criticScore: result.score, source: "Wine-Searcher" });
-  } catch {
-    res.json({ criticScore: null, source: "Wine-Searcher" });
+    const wineName = vintage ? `${name} ${vintage}` : name;
+
+    const criticPrompt = `You are a wine database expert. For the wine "${wineName}", provide the most accurate known critic scores from these publications if they exist.
+Return ONLY a JSON object with numeric scores (integers 1-100) or null if unknown:
+{
+  "wine_spectator": null,
+  "wine_enthusiast": null,
+  "james_suckling": null,
+  "robert_parker": null,
+  "vinous": null,
+  "decanter": null,
+  "jancis_robinson": null
+}
+Return ONLY the JSON object, no other text.`;
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [{ role: "user", content: criticPrompt }],
+      max_tokens: 150,
+      response_format: { type: "json_object" },
+    });
+
+    const result = JSON.parse(completion.choices[0]?.message?.content ?? "{}");
+
+    const scores = [
+      result.wine_spectator,
+      result.wine_enthusiast,
+      result.james_suckling,
+      result.robert_parker,
+      result.vinous,
+      result.decanter,
+      result.jancis_robinson,
+    ].filter((s): s is number => typeof s === "number" && s > 0 && s <= 100);
+
+    const criticScore = scores.length > 0
+      ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+      : null;
+
+    const criticScoreCount = scores.length;
+    const criticScoreLabel = scores.length > 1
+      ? `${scores.length} critics`
+      : scores.length === 1
+        ? "1 critic"
+        : null;
+
+    res.json({ criticScore, criticScoreCount, criticScoreLabel });
+  } catch (err) {
+    console.error("Critic score error:", err);
+    res.json({ criticScore: null, criticScoreCount: 0, criticScoreLabel: null });
   }
 });
 
