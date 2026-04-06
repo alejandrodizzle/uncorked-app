@@ -290,8 +290,8 @@ Return ONLY the JSON, no other text.`;
 
     const confidence = typeof result.confidence === "string" ? result.confidence : "low";
 
-    // Only show critic score if confidence is medium or high AND at least 2 sources returned a score
-    const meetsThreshold = confidence !== "low" && scores.length >= 2;
+    // Show critic score if confidence is medium or high (any number of sources); suppress only on low
+    const meetsThreshold = confidence !== "low";
 
     const criticScore = meetsThreshold
       ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
