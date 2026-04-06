@@ -54,7 +54,7 @@ export default function WineDetailScreen({ wine, savedWines, onSaveToggle, onHom
   });
 
   const isSaved = savedWines.some((w) => w.name === wine.name && w.vintage === wine.vintage);
-  const wineAsWine: Wine = { name: wine.name, vintage: wine.vintage, region: wine.region, grape: wine.grape, menuPrice: null, tastingNotes: null };
+  const wineAsWine: Wine = { name: wine.name, vintage: wine.vintage, region: wine.region, grape: wine.grape, menuPrice: null, tastingNotes: wine.tastingNotes ?? null };
 
   useEffect(() => {
     // Fetch AI detail
@@ -284,13 +284,13 @@ export default function WineDetailScreen({ wine, savedWines, onSaveToggle, onHom
           <div className="flex flex-col gap-2">
             <Shimmer width="100%" height={14} /><Shimmer width="90%" height={14} delay="0.15s" /><Shimmer width="75%" height={14} delay="0.3s" />
           </div>
-        ) : aiDetail?.tastingNotes ? (
+        ) : (aiDetail?.tastingNotes || wine.tastingNotes) ? (
           <p style={{
             fontFamily: "'Cormorant Garamond', Georgia, serif",
             fontSize: "1.1rem", fontStyle: "italic",
             color: "rgba(60,15,25,0.78)", lineHeight: 1.65, margin: 0,
           }}>
-            {aiDetail.tastingNotes}
+            {aiDetail?.tastingNotes ?? wine.tastingNotes}
           </p>
         ) : null}
       </div>

@@ -64,6 +64,7 @@ export default function SavedScreen({ savedWines, onRemove, onHome, onWineSelect
                   vivinoRating: null,
                   vivinoRatingsCount: null,
                   vivinoWineId: null,
+                  tastingNotes: wine.tastingNotes ?? null,
                 })}
               />
             ))}

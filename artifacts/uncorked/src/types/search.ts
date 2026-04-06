@@ -6,4 +6,5 @@ export interface SearchResult {
   vivinoRating: number | null;
   vivinoRatingsCount: number | null;
   vivinoWineId: number | null;
+  tastingNotes?: string | null;
 }
