@@ -290,15 +290,18 @@ Return ONLY the JSON, no other text.`;
       result.vinous,
       result.decanter,
       result.jancis_robinson,
-    ].filter((s): s is number => typeof s === "number" && s > 0 && s <= 100);
+    ].filter((s): s is number => typeof s === "number" && s >= 80 && s <= 97);
 
     const confidence = typeof result.confidence === "string" ? result.confidence : "low";
 
     // Show critic score if confidence is medium or high (any number of sources); suppress only on low
     const meetsThreshold = confidence !== "low";
 
-    const criticScore = meetsThreshold
+    const rawAvg = scores.length > 0
       ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+      : null;
+    const criticScore = meetsThreshold && rawAvg !== null
+      ? Math.min(97, rawAvg)
       : null;
 
     res.json({

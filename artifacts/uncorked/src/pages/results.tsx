@@ -549,7 +549,7 @@ function WineCard({
             const realScore = criticScore?.criticScore ?? null;
             const vivinoVal = vivinoRating?.rating ?? null;
             const displayScore = realScore !== null ? realScore
-              : vivinoVal != null ? Math.min(100, Math.round((vivinoVal - 2.5) / 2.5 * 40 + 75)) : null;
+              : vivinoVal != null ? Math.min(97, Math.round(75 + ((vivinoVal - 3.0) / (5.0 - 3.0)) * 22)) : null;
             const displayLabel = realScore !== null ? (criticScore?.criticScoreLabel ?? null)
               : vivinoVal != null ? "est." : null;
             const isEst = realScore === null && displayScore !== null;

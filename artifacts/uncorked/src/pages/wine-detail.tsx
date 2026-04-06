@@ -214,7 +214,7 @@ export default function WineDetailScreen({ wine, savedWines, onSaveToggle, onHom
             const realCritic = criticRating?.criticScore ?? null;
             const vivinoVal = vivinoRating?.rating ?? null;
             const criticDisplay = realCritic !== null ? realCritic
-              : vivinoVal != null && !loadingCritic ? Math.min(100, Math.round((vivinoVal - 2.5) / 2.5 * 40 + 75)) : null;
+              : vivinoVal != null && !loadingCritic ? Math.min(97, Math.round(75 + ((vivinoVal - 3.0) / (5.0 - 3.0)) * 22)) : null;
             const criticSub = realCritic !== null ? (criticRating?.criticScoreLabel ?? "critics")
               : vivinoVal != null && !loadingCritic ? "est." : "critics";
             const isEst = realCritic === null && criticDisplay !== null;
