@@ -13,7 +13,7 @@ export default function SavedScreen({ savedWines, onRemove, onHome, onWineSelect
   return (
     <div style={{ minHeight: "100svh", width: "100%", backgroundColor: "#faf7f2" }}>
       <div style={{
-        paddingTop: "env(safe-area-inset-top, 48px)",
+        paddingTop: "calc(1rem + env(safe-area-inset-top, 12px))",
         paddingLeft: "1.5rem",
         paddingRight: "1.5rem",
         paddingBottom: "1rem",

@@ -134,7 +134,7 @@ export default function WineDetailScreen({ wine, savedWines, onSaveToggle, onHom
           onClick={onHome}
           title="Home"
           style={{
-            position: "absolute", top: "1rem", right: "1rem",
+            position: "absolute", top: "calc(1rem + env(safe-area-inset-top, 12px))", right: "1rem",
             background: "rgba(255,255,255,0.2)", border: "none",
             borderRadius: "50%", padding: "0.5rem",
             cursor: "pointer", display: "flex",
