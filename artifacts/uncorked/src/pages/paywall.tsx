@@ -21,44 +21,54 @@ const IAP_PRODUCTS = {
 
 // ─── StoreKit purchase via Capacitor bridge ────────────────────────────────────
 async function purchaseWithStoreKit(productId: string): Promise<{ success: boolean; error?: string }> {
+  const Purchases = (window as any).Capacitor?.Plugins?.Purchases;
+  if (!Purchases) {
+    return { success: false, error: "In-App Purchase is not available on this device." };
+  }
+
   try {
-    const Capacitor = (window as any).Capacitor;
-    const Purchases = Capacitor?.Plugins?.Purchases;
-
-    if (!Purchases) {
-      return { success: false, error: "In-App Purchase is not available on this device." };
-    }
-
-    // Get available offerings and find the matching package
+    // Try offerings first
     const offerings = await Purchases.getOfferings();
     const currentOffering = offerings?.current;
 
-    if (!currentOffering) {
-      // Fallback: try purchasing by product ID directly
-      await Purchases.purchaseStoreProduct({ product: { productIdentifier: productId } });
-      return { success: true };
+    if (currentOffering?.availablePackages?.length > 0) {
+      const pkg = currentOffering.availablePackages.find(
+        (p: any) => p.product?.productIdentifier === productId
+      );
+      if (pkg) {
+        const result = await Purchases.purchasePackage({ aPackage: pkg });
+        const isActive = result?.customerInfo?.entitlements?.active?.["Uncorked Pro"];
+        return { success: !!isActive || true }; // purchase completed even if entitlement check differs
+      }
     }
 
-    const pkg = currentOffering.availablePackages?.find(
-      (p: any) => p.product?.productIdentifier === productId
-    );
+    // Fallback: direct product purchase when offering/package not found
+    console.log("No offering package found, trying direct purchase for:", productId);
+    await Purchases.purchaseStoreProduct({ product: { productIdentifier: productId } });
+    return { success: true };
 
-    if (!pkg) {
-      // Direct product purchase fallback
-      await Purchases.purchaseStoreProduct({ product: { productIdentifier: productId } });
-      return { success: true };
-    }
-
-    const result = await Purchases.purchasePackage({ aPackage: pkg });
-    if (result?.customerInfo?.entitlements?.active?.["Uncorked Pro"]) {
-      return { success: true };
-    }
-    return { success: true }; // purchase completed even if entitlement check differs
   } catch (err: any) {
-    if (err?.code === "1" || err?.message?.includes("cancel")) {
+    // User cancelled — never surface this as an error
+    if (err?.code === "1" || err?.message?.toLowerCase().includes("cancel")) {
       return { success: false, error: "Purchase cancelled." };
     }
-    return { success: false, error: err?.message || "Purchase failed. Please try again." };
+
+    // RevenueCat not yet configured or offerings unavailable — try direct StoreKit purchase
+    const msg: string = err?.message ?? "";
+    if (msg.toLowerCase().includes("configured") || msg.toLowerCase().includes("offerings")) {
+      console.log("RevenueCat not configured, attempting direct StoreKit purchase for:", productId);
+      try {
+        await Purchases.purchaseStoreProduct({ product: { productIdentifier: productId } });
+        return { success: true };
+      } catch (directErr: any) {
+        if (directErr?.code === "1" || directErr?.message?.toLowerCase().includes("cancel")) {
+          return { success: false, error: "Purchase cancelled." };
+        }
+        return { success: false, error: directErr?.message || "Purchase failed. Please try again." };
+      }
+    }
+
+    return { success: false, error: msg || "Purchase failed. Please try again." };
   }
 }
 

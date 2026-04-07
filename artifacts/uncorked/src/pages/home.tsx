@@ -332,7 +332,7 @@ export default function Home() {
         msg.toLowerCase().includes("dismiss") ||
         msg.toLowerCase().includes("no image")
       ) return;
-      setError("Could not access camera. Please check permissions and try again.");
+      setError("Camera is not available. Please try again.");
     }
   };
 
