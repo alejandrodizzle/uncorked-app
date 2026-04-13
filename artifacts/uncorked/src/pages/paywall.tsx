@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { apiUrl } from "../lib/api";
 import { Browser } from "@capacitor/browser";
 
@@ -23,6 +23,37 @@ const openLink = async (url: string) => {
   }
 };
 
+// ─── RevenueCat readiness helpers ────────────────────────────────────────────
+// Native iOS SDK initializes asynchronously; even after Purchases.configure()
+// resolves in JS, the native layer may not be ready yet. These helpers gate all
+// SDK calls behind a confirmation probe.
+
+const isRCNotConfiguredError = (msg: string) =>
+  msg.toLowerCase().includes("configured") ||
+  msg.toLowerCase().includes("purchases must be") ||
+  msg.toLowerCase().includes("before calling this function");
+
+const isRevenueCatConfigured = async (): Promise<boolean> => {
+  try {
+    if ((window as any).__rcConfigured) return true;
+    const Purchases = (window as any).Capacitor?.Plugins?.Purchases;
+    if (!Purchases) return false;
+    await Purchases.getCustomerInfo();
+    return true;
+  } catch (err: any) {
+    if (isRCNotConfiguredError(err?.message ?? "")) return false;
+    return true; // different error = SDK is up, just a data issue
+  }
+};
+
+const waitForRevenueCat = async (maxAttempts = 10): Promise<boolean> => {
+  for (let i = 0; i < maxAttempts; i++) {
+    if (await isRevenueCatConfigured()) return true;
+    await new Promise(resolve => setTimeout(resolve, 500));
+  }
+  return false;
+};
+
 // ─── Apple IAP product IDs (must match App Store Connect exactly) ─────────────
 const IAP_PRODUCTS = {
   monthly: "com.aarenas.uncorked.monthly",
@@ -34,6 +65,16 @@ async function purchaseWithStoreKit(productId: string): Promise<{ success: boole
   const Purchases = (window as any).Capacitor?.Plugins?.Purchases;
   if (!Purchases) {
     return { success: false, error: "In-App Purchase is not available on this device." };
+  }
+
+  // Gate every SDK call on RevenueCat being fully initialized
+  const ready = await waitForRevenueCat();
+  if (!ready) {
+    // One final retry after an extra second before surfacing any error
+    await new Promise(r => setTimeout(r, 1000));
+    if (!(await isRevenueCatConfigured())) {
+      return { success: false, error: "Please wait a moment and try again." };
+    }
   }
 
   try {
@@ -63,10 +104,12 @@ async function purchaseWithStoreKit(productId: string): Promise<{ success: boole
       return { success: false, error: "Purchase cancelled." };
     }
 
-    // RevenueCat not yet configured or offerings unavailable — try direct StoreKit purchase
     const msg: string = err?.message ?? "";
-    if (msg.toLowerCase().includes("configured") || msg.toLowerCase().includes("offerings")) {
-      console.log("RevenueCat not configured, attempting direct StoreKit purchase for:", productId);
+
+    // RC "not configured" family — retry once with 1s delay then direct purchase
+    if (isRCNotConfiguredError(msg)) {
+      console.warn("RC not configured during purchase, retrying after delay…");
+      await new Promise(r => setTimeout(r, 1000));
       try {
         await Purchases.purchaseStoreProduct({ product: { productIdentifier: productId } });
         return { success: true };
@@ -74,25 +117,30 @@ async function purchaseWithStoreKit(productId: string): Promise<{ success: boole
         if (directErr?.code === "1" || directErr?.message?.toLowerCase().includes("cancel")) {
           return { success: false, error: "Purchase cancelled." };
         }
-        return { success: false, error: directErr?.message || "Purchase failed. Please try again." };
+        const dm: string = directErr?.message ?? "";
+        return { success: false, error: isRCNotConfiguredError(dm) ? "Please wait a moment and try again." : dm || "Purchase failed. Please try again." };
       }
     }
 
-    return { success: false, error: msg || "Purchase failed. Please try again." };
+    return { success: false, error: isRCNotConfiguredError(msg) ? "Please wait a moment and try again." : msg || "Purchase failed. Please try again." };
   }
 }
 
 // ─── Restore purchases via StoreKit ───────────────────────────────────────────
 async function restoreStoreKitPurchases(): Promise<{ success: boolean; error?: string }> {
   try {
-    const Capacitor = (window as any).Capacitor;
-    const Purchases = Capacitor?.Plugins?.Purchases;
+    const Purchases = (window as any).Capacitor?.Plugins?.Purchases;
     if (!Purchases) return { success: false, error: "Restore not available." };
+
+    const ready = await waitForRevenueCat();
+    if (!ready) return { success: false, error: "Please wait a moment and try again." };
+
     const result = await Purchases.restorePurchases();
     const hasActive = result?.customerInfo?.entitlements?.active?.["Uncorked Pro"];
     return { success: !!hasActive, error: hasActive ? undefined : "No active subscription found." };
   } catch (err: any) {
-    return { success: false, error: err?.message || "Restore failed. Please try again." };
+    const msg: string = err?.message ?? "";
+    return { success: false, error: isRCNotConfiguredError(msg) ? "Please wait a moment and try again." : msg || "Restore failed. Please try again." };
   }
 }
 
@@ -125,6 +173,20 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
 
   const isExpired = trialDaysLeft <= 0;
   const nativeIOS = isNativeIOSBuild();
+
+  // RevenueCat readiness — gates subscription options on iOS to prevent
+  // "Purchases must be configured" errors from surfacing to the user
+  const [revenueCatReady, setRevenueCatReady] = useState(!nativeIOS);
+
+  useEffect(() => {
+    if (!nativeIOS) return;
+    let cancelled = false;
+    (async () => {
+      const ready = await waitForRevenueCat();
+      if (!cancelled) setRevenueCatReady(ready);
+    })();
+    return () => { cancelled = true; };
+  }, [nativeIOS]);
 
   // ── Promo code handler ───────────────────────────────────────────────────────
   async function handleRedeemPromo() {
@@ -463,7 +525,18 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
         ) : nativeIOS ? (
           // ── iOS: StoreKit purchase UI ──────────────────────────────────────────
           <>
-            <div style={{ width: "100%", display: "flex", gap: "12px", marginBottom: "1rem" }}>
+            {/* Loading state while RevenueCat initializes — prevents raw SDK errors */}
+            {!revenueCatReady ? (
+              <div style={{
+                textAlign: "center", padding: "2rem 1rem",
+                color: "rgba(123,28,52,0.5)", fontFamily: "'Inter', sans-serif",
+                fontSize: "0.85rem",
+              }}>
+                Loading subscription options…
+              </div>
+            ) : null}
+
+            <div style={{ width: "100%", display: "flex", gap: "12px", marginBottom: "1rem", opacity: revenueCatReady ? 1 : 0.35, pointerEvents: revenueCatReady ? "auto" : "none", transition: "opacity 0.3s" }}>
               <PlanCard
                 label="Monthly"
                 price="$3.99"

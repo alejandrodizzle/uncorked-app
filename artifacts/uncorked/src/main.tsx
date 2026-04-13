@@ -29,8 +29,14 @@ async function initCapacitor() {
       if (apiKey) {
         await Purchases.setLogLevel({ level: LOG_LEVEL.ERROR });
         await Purchases.configure({ apiKey });
+        // Mark as configured so paywall can gate SDK calls on this flag
+        (window as any).__rcConfigured = true;
+        console.log("RevenueCat configured successfully");
       }
-    } catch { /* RevenueCat not available */ }
+    } catch (e) {
+      console.warn("RevenueCat initialization failed:", e);
+      /* RevenueCat not available — app continues without IAP */
+    }
   }
 }
 
