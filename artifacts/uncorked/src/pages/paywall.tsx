@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { apiUrl } from "../lib/api";
+import { Browser } from "@capacitor/browser";
 
 // ─── Platform detection ────────────────────────────────────────────────────────
 // Returns true ONLY on native iOS — used for Apple IAP compliance.
@@ -10,6 +11,15 @@ const isNativeIOSBuild = () => {
     return (window as any).Capacitor?.getPlatform?.() === "ios";
   } catch {
     return false;
+  }
+};
+
+// ─── Open a URL respecting native iOS in-app browser ─────────────────────────
+const openLink = async (url: string) => {
+  if (isNativeIOSBuild()) {
+    await Browser.open({ url });
+  } else {
+    window.open(url, "_blank", "noopener,noreferrer");
   }
 };
 
@@ -556,15 +566,16 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
               gap: "0", marginTop: "1.25rem",
             }}>
               <a
-                href="/privacy"
+                href="https://wine-scan-ai.replit.app/privacy"
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={(e) => { e.preventDefault(); openLink("https://wine-scan-ai.replit.app/privacy"); }}
                 style={{
                   fontFamily: "'Inter', sans-serif", fontSize: "0.7rem",
                   color: "rgba(123,28,52,0.38)", textDecoration: "none",
                   letterSpacing: "0.02em", padding: "4px 8px",
                   borderBottom: "1px solid rgba(123,28,52,0.18)",
-                  lineHeight: 1,
+                  lineHeight: 1, cursor: "pointer",
                 }}
               >
                 Privacy Policy
@@ -574,15 +585,16 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
                 padding: "0 2px", userSelect: "none",
               }}>·</span>
               <a
-                href="/terms"
+                href="https://wine-scan-ai.replit.app/terms"
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={(e) => { e.preventDefault(); openLink("https://wine-scan-ai.replit.app/terms"); }}
                 style={{
                   fontFamily: "'Inter', sans-serif", fontSize: "0.7rem",
                   color: "rgba(123,28,52,0.38)", textDecoration: "none",
                   letterSpacing: "0.02em", padding: "4px 8px",
                   borderBottom: "1px solid rgba(123,28,52,0.18)",
-                  lineHeight: 1,
+                  lineHeight: 1, cursor: "pointer",
                 }}
               >
                 Terms of Use
