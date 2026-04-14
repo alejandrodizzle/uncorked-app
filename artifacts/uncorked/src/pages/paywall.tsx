@@ -77,47 +77,86 @@ async function purchaseWithStoreKit(productId: string): Promise<{ success: boole
     }
   }
 
-  try {
-    // Try offerings first
-    const offerings = await Purchases.getOfferings();
-    const currentOffering = offerings?.current;
+  console.log("RC configured, attempting purchase for:", productId);
 
+  try {
+    // ── Path A: offerings ────────────────────────────────────────────────────
+    const offerings = await Purchases.getOfferings();
+    console.log("Offerings result:", JSON.stringify(offerings?.current ?? null));
+    console.log("Available packages:", JSON.stringify(offerings?.current?.availablePackages ?? []));
+
+    const currentOffering = offerings?.current;
     if (currentOffering?.availablePackages?.length > 0) {
       const pkg = currentOffering.availablePackages.find(
-        (p: any) => p.product?.productIdentifier === productId
+        (p: any) => {
+          const pid = p.product?.productIdentifier;
+          console.log("Comparing package productIdentifier:", pid, "vs target:", productId);
+          return pid === productId;
+        }
       );
       if (pkg) {
+        console.log("Found matching package, calling purchasePackage…");
         const result = await Purchases.purchasePackage({ aPackage: pkg });
         const isActive = result?.customerInfo?.entitlements?.active?.["Uncorked Pro"];
-        return { success: !!isActive || true }; // purchase completed even if entitlement check differs
+        console.log("Purchase result entitlements active:", isActive);
+        return { success: true }; // purchase completed — entitlement may take a moment to activate
       }
+      console.log("No package matched productId in current offering — falling through to getProducts fallback");
+    } else {
+      console.log("No current offering or empty packages — falling through to getProducts fallback");
     }
 
-    // Fallback: direct product purchase when offering/package not found
-    console.log("No offering package found, trying direct purchase for:", productId);
+    // ── Path B: getProducts fallback ─────────────────────────────────────────
+    // getOfferings() can return empty in sandbox or before RC products are
+    // synced. Use getProducts() to fetch the actual StoreProduct object (which
+    // contains all StoreKit-required fields), then purchase directly.
+    console.log("Fetching products directly via getProducts for:", productId);
+    const productsResult = await Purchases.getProducts({ productIdentifiers: [productId] });
+    console.log("getProducts result:", JSON.stringify(productsResult?.products ?? []));
+    const products: any[] = productsResult?.products ?? [];
+
+    if (products.length > 0) {
+      console.log("Purchasing via purchaseStoreProduct with full StoreProduct object…");
+      const result = await Purchases.purchaseStoreProduct({ product: products[0] });
+      const isActive = result?.customerInfo?.entitlements?.active?.["Uncorked Pro"];
+      console.log("Direct purchase result entitlements active:", isActive);
+      return { success: true };
+    }
+
+    // ── Path C: last-resort bare identifier ──────────────────────────────────
+    // getProducts also returned nothing — try with bare identifier as last resort.
+    console.warn("getProducts returned empty — trying bare identifier as last resort for:", productId);
     await Purchases.purchaseStoreProduct({ product: { productIdentifier: productId } });
     return { success: true };
 
   } catch (err: any) {
-    // User cancelled — never surface this as an error
+    // User cancelled — never surface as an error
     if (err?.code === "1" || err?.message?.toLowerCase().includes("cancel")) {
       return { success: false, error: "Purchase cancelled." };
     }
 
     const msg: string = err?.message ?? "";
+    console.error("purchaseWithStoreKit error:", msg, "code:", err?.code);
 
-    // RC "not configured" family — retry once with 1s delay then direct purchase
+    // RC "not configured" family — retry once with 1s delay then getProducts path
     if (isRCNotConfiguredError(msg)) {
-      console.warn("RC not configured during purchase, retrying after delay…");
+      console.warn("RC not configured during purchase, retrying after 1s delay…");
       await new Promise(r => setTimeout(r, 1000));
       try {
-        await Purchases.purchaseStoreProduct({ product: { productIdentifier: productId } });
+        const productsResult = await Purchases.getProducts({ productIdentifiers: [productId] });
+        const products: any[] = productsResult?.products ?? [];
+        if (products.length > 0) {
+          await Purchases.purchaseStoreProduct({ product: products[0] });
+        } else {
+          await Purchases.purchaseStoreProduct({ product: { productIdentifier: productId } });
+        }
         return { success: true };
       } catch (directErr: any) {
         if (directErr?.code === "1" || directErr?.message?.toLowerCase().includes("cancel")) {
           return { success: false, error: "Purchase cancelled." };
         }
         const dm: string = directErr?.message ?? "";
+        console.error("Retry purchase error:", dm);
         return { success: false, error: isRCNotConfiguredError(dm) ? "Please wait a moment and try again." : dm || "Purchase failed. Please try again." };
       }
     }
