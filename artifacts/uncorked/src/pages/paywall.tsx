@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { apiUrl } from "../lib/api";
 import { Browser } from "@capacitor/browser";
 
@@ -54,116 +54,25 @@ const waitForRevenueCat = async (maxAttempts = 10): Promise<boolean> => {
   return false;
 };
 
-// ─── Apple IAP product IDs (must match App Store Connect exactly) ─────────────
-const IAP_PRODUCTS = {
-  monthly: "com.aarenas.uncorked.monthly",
-  yearly: "com.aarenas.uncorked.yearly",
-};
-
-// ─── StoreKit purchase via Capacitor bridge ────────────────────────────────────
-async function purchaseWithStoreKit(productId: string): Promise<{ success: boolean; error?: string }> {
-  const Purchases = (window as any).Capacitor?.Plugins?.Purchases;
-  if (!Purchases) {
-    return { success: false, error: "In-App Purchase is not available on this device." };
-  }
-
-  // Gate every SDK call on RevenueCat being fully initialized
-  const ready = await waitForRevenueCat();
-  if (!ready) {
-    // One final retry after an extra second before surfacing any error
-    await new Promise(r => setTimeout(r, 1000));
-    if (!(await isRevenueCatConfigured())) {
-      return { success: false, error: "Please wait a moment and try again." };
-    }
-  }
-
-  console.log("RC configured, attempting purchase for:", productId);
-
-  try {
-    // ── Path A: offerings ────────────────────────────────────────────────────
-    const offerings = await Purchases.getOfferings();
-    console.log("Offerings result:", JSON.stringify(offerings?.current ?? null));
-    console.log("Available packages:", JSON.stringify(offerings?.current?.availablePackages ?? []));
-
-    const currentOffering = offerings?.current;
-    if (currentOffering?.availablePackages?.length > 0) {
-      const pkg = currentOffering.availablePackages.find(
-        (p: any) => {
-          const pid = p.product?.productIdentifier;
-          console.log("Comparing package productIdentifier:", pid, "vs target:", productId);
-          return pid === productId;
-        }
-      );
-      if (pkg) {
-        console.log("Found matching package, calling purchasePackage…");
-        const result = await Purchases.purchasePackage({ aPackage: pkg });
-        const isActive = result?.customerInfo?.entitlements?.active?.["Uncorked Pro"];
-        console.log("Purchase result entitlements active:", isActive);
-        return { success: true }; // purchase completed — entitlement may take a moment to activate
-      }
-      console.log("No package matched productId in current offering — falling through to getProducts fallback");
-    } else {
-      console.log("No current offering or empty packages — falling through to getProducts fallback");
-    }
-
-    // ── Path B: getProducts fallback ─────────────────────────────────────────
-    // getOfferings() can return empty in sandbox or before RC products are
-    // synced. Use getProducts() to fetch the actual StoreProduct object (which
-    // contains all StoreKit-required fields), then purchase directly.
-    console.log("Fetching products directly via getProducts for:", productId);
-    const productsResult = await Purchases.getProducts({ productIdentifiers: [productId] });
-    console.log("getProducts result:", JSON.stringify(productsResult?.products ?? []));
-    const products: any[] = productsResult?.products ?? [];
-
-    if (products.length > 0) {
-      console.log("Purchasing via purchaseStoreProduct with full StoreProduct object…");
-      const result = await Purchases.purchaseStoreProduct({ product: products[0] });
-      const isActive = result?.customerInfo?.entitlements?.active?.["Uncorked Pro"];
-      console.log("Direct purchase result entitlements active:", isActive);
-      return { success: true };
-    }
-
-    // ── Path C: last-resort bare identifier ──────────────────────────────────
-    // getProducts also returned nothing — try with bare identifier as last resort.
-    console.warn("getProducts returned empty — trying bare identifier as last resort for:", productId);
-    await Purchases.purchaseStoreProduct({ product: { productIdentifier: productId } });
-    return { success: true };
-
-  } catch (err: any) {
-    // User cancelled — never surface as an error
-    if (err?.code === "1" || err?.message?.toLowerCase().includes("cancel")) {
-      return { success: false, error: "Purchase cancelled." };
-    }
-
-    const msg: string = err?.message ?? "";
-    console.error("purchaseWithStoreKit error:", msg, "code:", err?.code);
-
-    // RC "not configured" family — retry once with 1s delay then getProducts path
-    if (isRCNotConfiguredError(msg)) {
-      console.warn("RC not configured during purchase, retrying after 1s delay…");
-      await new Promise(r => setTimeout(r, 1000));
-      try {
-        const productsResult = await Purchases.getProducts({ productIdentifiers: [productId] });
-        const products: any[] = productsResult?.products ?? [];
-        if (products.length > 0) {
-          await Purchases.purchaseStoreProduct({ product: products[0] });
-        } else {
-          await Purchases.purchaseStoreProduct({ product: { productIdentifier: productId } });
-        }
-        return { success: true };
-      } catch (directErr: any) {
-        if (directErr?.code === "1" || directErr?.message?.toLowerCase().includes("cancel")) {
-          return { success: false, error: "Purchase cancelled." };
-        }
-        const dm: string = directErr?.message ?? "";
-        console.error("Retry purchase error:", dm);
-        return { success: false, error: isRCNotConfiguredError(dm) ? "Please wait a moment and try again." : dm || "Purchase failed. Please try again." };
-      }
-    }
-
-    return { success: false, error: isRCNotConfiguredError(msg) ? "Please wait a moment and try again." : msg || "Purchase failed. Please try again." };
-  }
-}
+// ─── Hardcoded plan catalog (NEVER depends on RevenueCat loading) ────────────
+// Display values are hardcoded so the paywall renders instantly with full
+// pricing/labels even before RevenueCat finishes initializing. The productId
+// strings must match App Store Connect entries exactly.
+const PLANS = {
+  monthly: {
+    productId: "com.aarenas.uncorked.monthly",
+    price: "$3.99",
+    period: "per month",
+    label: "Monthly",
+  },
+  yearly: {
+    productId: "com.aarenas.uncorked.yearly",
+    price: "$39.99",
+    period: "per year",
+    label: "Yearly",
+    savings: "Save 17%",
+  },
+} as const;
 
 // ─── Restore purchases via StoreKit ───────────────────────────────────────────
 async function restoreStoreKitPurchases(): Promise<{ success: boolean; error?: string }> {
@@ -212,20 +121,10 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
 
   const isExpired = trialDaysLeft <= 0;
   const nativeIOS = isNativeIOSBuild();
-
-  // RevenueCat readiness — gates subscription options on iOS to prevent
-  // "Purchases must be configured" errors from surfacing to the user
-  const [revenueCatReady, setRevenueCatReady] = useState(!nativeIOS);
-
-  useEffect(() => {
-    if (!nativeIOS) return;
-    let cancelled = false;
-    (async () => {
-      const ready = await waitForRevenueCat();
-      if (!cancelled) setRevenueCatReady(ready);
-    })();
-    return () => { cancelled = true; };
-  }, [nativeIOS]);
+  // No mount-time RevenueCat probe — the paywall renders immediately at full
+  // opacity. RC readiness is checked only inside handleIOSPurchase when the
+  // user actually taps the purchase button, so no error can ever surface
+  // before user interaction.
 
   // ── Promo code handler ───────────────────────────────────────────────────────
   async function handleRedeemPromo() {
@@ -288,19 +187,117 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
     }
   }
 
-  // ── iOS IAP purchase ─────────────────────────────────────────────────────────
+  // ── iOS IAP purchase — bulletproof inlined flow ──────────────────────────────
   async function handleIOSPurchase() {
+    const productId = PLANS[selectedPlan].productId;
     setLoading(true);
     setError(null);
-    const productId = IAP_PRODUCTS[selectedPlan];
-    const result = await purchaseWithStoreKit(productId);
-    if (result.success) {
-      // Display-cache only — server is authoritative. Used for fast local render
-      // on next load (home.tsx Step 2) before the server response arrives.
-      localStorage.setItem("subscribed", "true");
-      onSubscribed();
-    } else {
-      setError(result.error || "Purchase failed.");
+
+    try {
+      const Purchases = (window as any).Capacitor?.Plugins?.Purchases;
+
+      // Guard 1 — plugin must be present
+      if (!Purchases) {
+        setError("In-App Purchase is not available on this device.");
+        return;
+      }
+
+      // Guard 2 — wait for RevenueCat configure (up to 10s — 20×500ms)
+      let configured = false;
+      for (let i = 0; i < 20; i++) {
+        try {
+          await Purchases.getCustomerInfo();
+          configured = true;
+          break;
+        } catch (e: any) {
+          const m: string = e?.message ?? "";
+          if (m.includes("configured") || m.includes("Purchases must be")) {
+            await new Promise(r => setTimeout(r, 500));
+            continue;
+          }
+          // Any other error means the SDK IS configured (e.g. network error)
+          configured = true;
+          break;
+        }
+      }
+      if (!configured) {
+        setError("Please check your internet connection and try again.");
+        return;
+      }
+
+      // ── Path A — offerings ───────────────────────────────────────────────────
+      try {
+        const offeringsResult = await Purchases.getOfferings();
+        const packages = offeringsResult?.current?.availablePackages || [];
+        console.log("Available packages:", packages.map((p: any) => p.product?.productIdentifier));
+
+        const pkg = packages.find((p: any) => p.product?.productIdentifier === productId);
+        if (pkg) {
+          console.log("Purchasing via package:", productId);
+          const result = await Purchases.purchasePackage({ aPackage: pkg });
+          const isActive = result?.customerInfo?.entitlements?.active?.["Uncorked Pro"];
+          if (isActive) {
+            localStorage.setItem("subscribed", "true");
+            onSubscribed();
+            return;
+          }
+        }
+      } catch (offeringsErr: any) {
+        console.log("Offerings path failed:", offeringsErr?.message);
+        // fall through to Path B
+      }
+
+      // ── Path B — getProducts → purchaseStoreProduct with full StoreProduct ──
+      try {
+        console.log("Trying getProducts for:", productId);
+        const productsResult = await Purchases.getProducts({ productIdentifiers: [productId] });
+        const products: any[] = productsResult?.products || [];
+        console.log("Products found:", products.length);
+
+        if (products.length > 0) {
+          const result = await Purchases.purchaseStoreProduct({ product: products[0] });
+          const isActive = result?.customerInfo?.entitlements?.active?.["Uncorked Pro"];
+          if (isActive) {
+            localStorage.setItem("subscribed", "true");
+            onSubscribed();
+            return;
+          }
+        }
+      } catch (productsErr: any) {
+        console.log("getProducts path failed:", productsErr?.message);
+        // fall through to Path C
+      }
+
+      // ── Path C — last-resort bare identifier ────────────────────────────────
+      try {
+        console.log("Last resort purchase attempt for:", productId);
+        await Purchases.purchaseStoreProduct({ product: { productIdentifier: productId } });
+        localStorage.setItem("subscribed", "true");
+        onSubscribed();
+      } catch (lastErr: any) {
+        throw lastErr;
+      }
+    } catch (err: any) {
+      console.error("Purchase failed:", err);
+      const msg: string = err?.message || "";
+      const isCancel =
+        err?.code === "1" ||
+        msg.toLowerCase().includes("cancel") ||
+        msg.toLowerCase().includes("dismiss");
+
+      if (!isCancel) {
+        // Sanitize — never surface raw SDK strings
+        if (msg.includes("configured") || msg.includes("Purchases must be") || msg.includes("before calling this function")) {
+          setError("Unable to complete purchase. Please restart the app and try again.");
+        } else if (msg.toLowerCase().includes("network") || msg.toLowerCase().includes("internet")) {
+          setError("Please check your internet connection and try again.");
+        } else if (msg.toLowerCase().includes("already") || msg.toLowerCase().includes("owned")) {
+          setError("You already have an active subscription. Try restoring purchases.");
+        } else {
+          setError("Purchase could not be completed. Please try again.");
+        }
+      }
+    } finally {
       setLoading(false);
     }
   }
@@ -564,8 +561,8 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
         ) : nativeIOS ? (
           // ── iOS: StoreKit purchase UI ──────────────────────────────────────────
           <>
-            {/* Loading state while RevenueCat initializes — prevents raw SDK errors */}
-            {!revenueCatReady ? (
+            {/* Paywall renders immediately at full opacity — no mount-time RC gating */}
+            {false ? (
               <div style={{
                 textAlign: "center", padding: "2rem 1rem",
                 color: "rgba(123,28,52,0.5)", fontFamily: "'Inter', sans-serif",
@@ -575,7 +572,7 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
               </div>
             ) : null}
 
-            <div style={{ width: "100%", display: "flex", gap: "12px", marginBottom: "1rem", opacity: revenueCatReady ? 1 : 0.35, pointerEvents: revenueCatReady ? "auto" : "none", transition: "opacity 0.3s" }}>
+            <div style={{ width: "100%", display: "flex", gap: "12px", marginBottom: "1rem" }}>
               <PlanCard
                 label="Monthly"
                 price="$3.99"
