@@ -33,28 +33,31 @@ const isRCNotConfiguredError = (msg: string) =>
   msg.toLowerCase().includes("purchases must be") ||
   msg.toLowerCase().includes("before calling this function");
 
-const isRevenueCatConfigured = async (): Promise<boolean> => {
-  try {
-    if ((window as any).__rcConfigured) return true;
-    const Purchases = (window as any).Capacitor?.Plugins?.Purchases;
-    if (!Purchases) return false;
-    await Purchases.getCustomerInfo();
-    (window as any).__rcConfigured = true;
-    return true;
-  } catch (err: any) {
-    if (isRCNotConfiguredError(err?.message ?? "")) return false;
-    (window as any).__rcConfigured = true;
-    return true; // different error = SDK is up, just a data issue
-  }
-};
-
-// 30×1000ms = 30s total. main.tsx now awaits a 2s post-configure delay before
-// rendering, so by the time the user reaches the paywall this almost always
-// returns immediately via the __rcConfigured short-circuit.
+// 30×1000ms = 30s total. NEVER trusts window.__rcConfigured as a fast-path —
+// always probes via getCustomerInfo() to confirm the native SDK is actually
+// answering. The flag is only WRITTEN here on a confirmed-working probe so
+// downstream code can trust it.
 const waitForRevenueCat = async (maxAttempts = 30): Promise<boolean> => {
   for (let i = 0; i < maxAttempts; i++) {
-    if (await isRevenueCatConfigured()) return true;
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    try {
+      const Purchases = (window as any).Capacitor?.Plugins?.Purchases;
+      if (!Purchases) {
+        await new Promise(r => setTimeout(r, 1000));
+        continue;
+      }
+      await Purchases.getCustomerInfo();
+      (window as any).__rcConfigured = true;
+      return true;
+    } catch (e: any) {
+      const m: string = e?.message ?? "";
+      if (m.includes("configured") || m.includes("Purchases must be")) {
+        await new Promise(r => setTimeout(r, 1000));
+        continue;
+      }
+      // Any other error = RC IS configured (e.g. network)
+      (window as any).__rcConfigured = true;
+      return true;
+    }
   }
   return false;
 };
@@ -223,11 +226,11 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
       }
 
       // Guard 2 — wait for RevenueCat configure (up to 30s — 30×1000ms)
-      // Short-circuits instantly when window.__rcConfigured is already true.
+      // NEVER trusts __rcConfigured as a fast-path — always probes via
+      // getCustomerInfo() to confirm the native SDK is actually answering.
       let configured = false;
       let lastProbeError = "";
       for (let i = 0; i < 30; i++) {
-        if ((window as any).__rcConfigured) { configured = true; break; }
         try {
           await Purchases.getCustomerInfo();
           (window as any).__rcConfigured = true;
@@ -624,6 +627,17 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
                 : "14-day free trial included · Cancel anytime"
               }
             </p>
+
+            {/* DEBUG diagnostic strip — visible on iOS while diagnosing the
+                "must be configured" issue. Remove after RC is verified working. */}
+            <div style={{
+              fontSize: "10px", color: "#888", padding: "4px 8px",
+              background: "#f5f5f5", borderRadius: "4px",
+              margin: "4px 0", fontFamily: "monospace",
+              width: "100%", textAlign: "center",
+            }}>
+              rc:{String(!!(window as any).Capacitor?.Plugins?.Purchases)} | ready:{String(!!(window as any).__rcConfigured)} | wait:{String(isWaitingForRC)}
+            </div>
 
             {error && (
               <p style={{
