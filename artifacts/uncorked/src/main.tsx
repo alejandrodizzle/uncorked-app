@@ -2,6 +2,14 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
 
+// CRITICAL: import the package eagerly so its registerPlugin('Purchases', ...)
+// call runs during module evaluation. Without this, the JS-side Capacitor
+// proxy on window.Capacitor.Plugins.Purchases is a stub that responds with
+// "Purchases must be configured" to every call — even after configure().
+// Reaching for window.Capacitor.Plugins.Purchases directly was a v7/v8
+// pattern; v9 requires the imported namespace.
+import { Purchases, LOG_LEVEL } from "@revenuecat/purchases-capacitor";
+
 // ── Capacitor diagnostics — visible in Xcode console + Sentry ────────────────
 console.log("Is native platform:", (window as any).Capacitor?.isNativePlatform?.());
 console.log("Platform:", (window as any).Capacitor?.getPlatform?.());
@@ -31,41 +39,35 @@ async function initRC() {
   if (!Capacitor?.isNativePlatform?.()) return;
   if (Capacitor.getPlatform?.() !== "ios") return;
 
-  const Purchases = Capacitor.Plugins?.Purchases;
-  if (!Purchases) {
-    console.error("RC plugin missing from Capacitor.Plugins — Podfile pod not linked?");
-    return;
-  }
-
   const apiKey = import.meta.env.VITE_REVENUECAT_API_KEY as string;
   console.log("Configuring RC with key:", apiKey?.substring(0, 10));
 
   try {
+    await Purchases.setLogLevel({ level: LOG_LEVEL.DEBUG });
     await Purchases.configure({ apiKey });
-    console.log("RC configure() resolved");
-    // Give native SDK extra time to fully initialize before verifying
-    await new Promise(r => setTimeout(r, 2000));
-    // CRITICAL: only set __rcConfigured = true after a real getCustomerInfo()
-    // round-trip succeeds. Setting it blindly after the 2s settle was lying
-    // to the paywall: the probe short-circuited and Purchase Path A fired
-    // immediately, throwing "Purchases must be configured" in <1s.
+    console.log("RC configure() resolved (via direct import)");
+
+    // Native SDK initializes asynchronously — give it a moment before probing.
+    await new Promise(r => setTimeout(r, 3000));
+
+    // Verify with a real round-trip. ONLY mark configured on success so the
+    // paywall probe doesn't get a false-positive short-circuit.
     try {
-      await Purchases.getCustomerInfo();
+      const info = await Purchases.getCustomerInfo();
+      console.log("RC verified, customer:", (info as any)?.customerInfo?.originalAppUserId ?? "(anon)");
       (window as any).__rcConfigured = true;
-      console.log("RC verified and ready");
     } catch (probeErr) {
       console.error("RC configure succeeded but getCustomerInfo failed:", probeErr);
-      // Do NOT set __rcConfigured — let the paywall's probe drive the wait.
+      // Do NOT set __rcConfigured — paywall probe will drive the wait.
     }
   } catch (err) {
-    console.error("RC configure failed:", err);
+    console.error("RC init failed:", err);
   }
 }
 
 // ── Render after RC init ─────────────────────────────────────────────────────
 // We deliberately await initRC so the paywall never opens while the native
-// SDK is still warming up. initChrome runs in parallel since it doesn't block
-// purchase flow correctness.
+// SDK is still warming up. initChrome runs in parallel.
 Promise.all([initRC(), initChrome()]).finally(() => {
   createRoot(document.getElementById("root")!).render(<App />);
 });
