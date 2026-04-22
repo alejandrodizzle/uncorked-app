@@ -204,6 +204,7 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
 
       // Guard 2 — wait for RevenueCat configure (up to 10s — 20×500ms)
       let configured = false;
+      let lastProbeError = "";
       for (let i = 0; i < 20; i++) {
         try {
           await Purchases.getCustomerInfo();
@@ -211,6 +212,7 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
           break;
         } catch (e: any) {
           const m: string = e?.message ?? "";
+          lastProbeError = m;
           if (m.includes("configured") || m.includes("Purchases must be")) {
             await new Promise(r => setTimeout(r, 500));
             continue;
@@ -221,7 +223,9 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
         }
       }
       if (!configured) {
-        setError("Please check your internet connection and try again.");
+        // DEBUG MODE — show the actual probe error so we can see what's failing
+        // on real devices. Revert to friendly copy after we identify the cause.
+        setError(`RC probe timeout: ${lastProbeError || "Unknown error"}`);
         return;
       }
 
@@ -280,22 +284,16 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
     } catch (err: any) {
       console.error("Purchase failed:", err);
       const msg: string = err?.message || "";
+      const code = err?.code != null ? String(err.code) : "";
       const isCancel =
-        err?.code === "1" ||
+        code === "1" ||
         msg.toLowerCase().includes("cancel") ||
         msg.toLowerCase().includes("dismiss");
 
       if (!isCancel) {
-        // Sanitize — never surface raw SDK strings
-        if (msg.includes("configured") || msg.includes("Purchases must be") || msg.includes("before calling this function")) {
-          setError("Unable to complete purchase. Please restart the app and try again.");
-        } else if (msg.toLowerCase().includes("network") || msg.toLowerCase().includes("internet")) {
-          setError("Please check your internet connection and try again.");
-        } else if (msg.toLowerCase().includes("already") || msg.toLowerCase().includes("owned")) {
-          setError("You already have an active subscription. Try restoring purchases.");
-        } else {
-          setError("Purchase could not be completed. Please try again.");
-        }
+        // DEBUG MODE — surface raw SDK error so we can diagnose TestFlight
+        // failures on real devices. Revert to sanitized copy after diagnosis.
+        setError(`Purchase failed: ${msg || "Unknown error"}${code ? ` (code ${code})` : ""}`);
       }
     } finally {
       setLoading(false);
