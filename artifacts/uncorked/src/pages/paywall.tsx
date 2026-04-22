@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { apiUrl } from "../lib/api";
 import { Browser } from "@capacitor/browser";
 
@@ -39,17 +39,22 @@ const isRevenueCatConfigured = async (): Promise<boolean> => {
     const Purchases = (window as any).Capacitor?.Plugins?.Purchases;
     if (!Purchases) return false;
     await Purchases.getCustomerInfo();
+    (window as any).__rcConfigured = true;
     return true;
   } catch (err: any) {
     if (isRCNotConfiguredError(err?.message ?? "")) return false;
+    (window as any).__rcConfigured = true;
     return true; // different error = SDK is up, just a data issue
   }
 };
 
-const waitForRevenueCat = async (maxAttempts = 10): Promise<boolean> => {
+// 30×1000ms = 30s total. main.tsx now awaits a 2s post-configure delay before
+// rendering, so by the time the user reaches the paywall this almost always
+// returns immediately via the __rcConfigured short-circuit.
+const waitForRevenueCat = async (maxAttempts = 30): Promise<boolean> => {
   for (let i = 0; i < maxAttempts; i++) {
     if (await isRevenueCatConfigured()) return true;
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise(resolve => setTimeout(resolve, 1000));
   }
   return false;
 };
@@ -121,10 +126,25 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
 
   const isExpired = trialDaysLeft <= 0;
   const nativeIOS = isNativeIOSBuild();
-  // No mount-time RevenueCat probe — the paywall renders immediately at full
-  // opacity. RC readiness is checked only inside handleIOSPurchase when the
-  // user actually taps the purchase button, so no error can ever surface
-  // before user interaction.
+
+  // ── isWaitingForRC: button-label hint only, never blocks the UI ─────────────
+  // The paywall still renders immediately at full opacity. This flag lets us
+  // show "Loading…" on the subscribe button while RC finishes warming up,
+  // so the user knows the app isn't frozen if they tap before RC is ready.
+  const [isWaitingForRC, setIsWaitingForRC] = useState<boolean>(
+    nativeIOS && !(typeof window !== "undefined" && (window as any).__rcConfigured)
+  );
+
+  useEffect(() => {
+    if (!nativeIOS) return;
+    if ((window as any).__rcConfigured) { setIsWaitingForRC(false); return; }
+    let cancelled = false;
+    (async () => {
+      await waitForRevenueCat();
+      if (!cancelled) setIsWaitingForRC(false);
+    })();
+    return () => { cancelled = true; };
+  }, [nativeIOS]);
 
   // ── Promo code handler ───────────────────────────────────────────────────────
   async function handleRedeemPromo() {
@@ -202,29 +222,34 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
         return;
       }
 
-      // Guard 2 — wait for RevenueCat configure (up to 10s — 20×500ms)
+      // Guard 2 — wait for RevenueCat configure (up to 30s — 30×1000ms)
+      // Short-circuits instantly when window.__rcConfigured is already true.
       let configured = false;
       let lastProbeError = "";
-      for (let i = 0; i < 20; i++) {
+      for (let i = 0; i < 30; i++) {
+        if ((window as any).__rcConfigured) { configured = true; break; }
         try {
           await Purchases.getCustomerInfo();
+          (window as any).__rcConfigured = true;
           configured = true;
           break;
         } catch (e: any) {
           const m: string = e?.message ?? "";
           lastProbeError = m;
           if (m.includes("configured") || m.includes("Purchases must be")) {
-            await new Promise(r => setTimeout(r, 500));
+            await new Promise(r => setTimeout(r, 1000));
             continue;
           }
           // Any other error means the SDK IS configured (e.g. network error)
+          (window as any).__rcConfigured = true;
           configured = true;
           break;
         }
       }
+      setIsWaitingForRC(false);
       if (!configured) {
-        // DEBUG MODE — show the actual probe error so we can see what's failing
-        // on real devices. Revert to friendly copy after we identify the cause.
+        // DEBUG MODE — surface the actual probe error so we can see what's
+        // failing on real devices. Revert to friendly copy after diagnosis.
         setError(`RC probe timeout: ${lastProbeError || "Unknown error"}`);
         return;
       }
@@ -630,9 +655,11 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
             >
               {loading
                 ? "Processing…"
-                : isExpired
-                  ? "Subscribe Now"
-                  : `Start Free Trial · ${selectedPlan === "monthly" ? "$3.99/mo" : "$39.99/yr"}`
+                : isWaitingForRC
+                  ? "Loading…"
+                  : isExpired
+                    ? "Subscribe Now"
+                    : `Start Free Trial · ${selectedPlan === "monthly" ? "$3.99/mo" : "$39.99/yr"}`
               }
             </button>
 
