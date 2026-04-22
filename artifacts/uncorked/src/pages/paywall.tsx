@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 import { apiUrl } from "../lib/api";
 import { Browser } from "@capacitor/browser";
+// v9 requires the named import — accessing window.Capacitor.Plugins.Purchases
+// directly returns a stub proxy whose calls always throw "must be configured".
+import { Purchases } from "@revenuecat/purchases-capacitor";
 
 // ─── Platform detection ────────────────────────────────────────────────────────
 // Returns true ONLY on native iOS — used for Apple IAP compliance.
@@ -35,16 +38,12 @@ const isRCNotConfiguredError = (msg: string) =>
 
 // 30×1000ms = 30s total. NEVER trusts window.__rcConfigured as a fast-path —
 // always probes via getCustomerInfo() to confirm the native SDK is actually
-// answering. The flag is only WRITTEN here on a confirmed-working probe so
-// downstream code can trust it.
+// answering. The flag is only WRITTEN here on a confirmed-working probe.
+// Uses the imported Purchases namespace, NOT window.Capacitor.Plugins.Purchases
+// (the latter is a stub that always throws "must be configured" in v9).
 const waitForRevenueCat = async (maxAttempts = 30): Promise<boolean> => {
   for (let i = 0; i < maxAttempts; i++) {
     try {
-      const Purchases = (window as any).Capacitor?.Plugins?.Purchases;
-      if (!Purchases) {
-        await new Promise(r => setTimeout(r, 1000));
-        continue;
-      }
       await Purchases.getCustomerInfo();
       (window as any).__rcConfigured = true;
       return true;
@@ -85,9 +84,6 @@ const PLANS = {
 // ─── Restore purchases via StoreKit ───────────────────────────────────────────
 async function restoreStoreKitPurchases(): Promise<{ success: boolean; error?: string }> {
   try {
-    const Purchases = (window as any).Capacitor?.Plugins?.Purchases;
-    if (!Purchases) return { success: false, error: "Restore not available." };
-
     const ready = await waitForRevenueCat();
     if (!ready) return { success: false, error: "Please wait a moment and try again." };
 
@@ -217,10 +213,8 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
     setError(null);
 
     try {
-      const Purchases = (window as any).Capacitor?.Plugins?.Purchases;
-
-      // Guard 1 — plugin must be present
-      if (!Purchases) {
+      // Guard 1 — bridge plugin must be present (sanity check)
+      if (!(window as any).Capacitor?.Plugins?.Purchases) {
         setError("In-App Purchase is not available on this device.");
         return;
       }
@@ -303,7 +297,7 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
       // ── Path C — last-resort bare identifier ────────────────────────────────
       try {
         console.log("Last resort purchase attempt for:", productId);
-        await Purchases.purchaseStoreProduct({ product: { productIdentifier: productId } });
+        await Purchases.purchaseStoreProduct({ product: { productIdentifier: productId } as any });
         localStorage.setItem("subscribed", "true");
         onSubscribed();
       } catch (lastErr: any) {
