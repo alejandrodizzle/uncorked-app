@@ -43,10 +43,20 @@ async function initRC() {
   try {
     await Purchases.configure({ apiKey });
     console.log("RC configure() resolved");
-    // Give native SDK extra time to fully initialize before any caller probes it
+    // Give native SDK extra time to fully initialize before verifying
     await new Promise(r => setTimeout(r, 2000));
-    (window as any).__rcConfigured = true;
-    console.log("RC fully ready");
+    // CRITICAL: only set __rcConfigured = true after a real getCustomerInfo()
+    // round-trip succeeds. Setting it blindly after the 2s settle was lying
+    // to the paywall: the probe short-circuited and Purchase Path A fired
+    // immediately, throwing "Purchases must be configured" in <1s.
+    try {
+      await Purchases.getCustomerInfo();
+      (window as any).__rcConfigured = true;
+      console.log("RC verified and ready");
+    } catch (probeErr) {
+      console.error("RC configure succeeded but getCustomerInfo failed:", probeErr);
+      // Do NOT set __rcConfigured — let the paywall's probe drive the wait.
+    }
   } catch (err) {
     console.error("RC configure failed:", err);
   }
