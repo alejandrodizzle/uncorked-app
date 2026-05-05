@@ -96,15 +96,6 @@ export default function Home() {
   // user is cosmetic.
   const [subStatus, setSubStatus] = useState<"loading" | "trial" | "active" | "expired">("trial");
   const [trialDaysLeft, setTrialDaysLeft] = useState(14);
-  // TEMP DEBUG: capture raw /api/user + /api/stripe/subscription responses
-  // so the on-screen overlay can show what the server actually returned.
-  // Remove these and the overlay JSX below when done debugging Issue 1.
-  const [debugUserResp, setDebugUserResp] = useState<any>(null);
-  const [debugStripeResp, setDebugStripeResp] = useState<any>(null);
-  const [debugUserErr, setDebugUserErr] = useState<string | null>(null);
-  const [debugStripeErr, setDebugStripeErr] = useState<string | null>(null);
-  const [debugUserUrl, setDebugUserUrl] = useState<string>("");
-  const [debugStripeUrl, setDebugStripeUrl] = useState<string>("");
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [showPaywallModal, setShowPaywallModal] = useState(false);
   const [showPaywallWithPromo, setShowPaywallWithPromo] = useState(false);
@@ -206,13 +197,10 @@ export default function Home() {
       // 8s timeout via AbortController — Replit autoscale cold starts can
       // hang fetches for 10-30s otherwise, leaving the overlay stuck at
       // "loading…" with no error visible.
-      const userUrl = apiUrl(`api/user/${userId}`);
-      setDebugUserUrl(userUrl); // TEMP DEBUG
       try {
-        const userRes = await fetch(userUrl, { signal: AbortSignal.timeout(8000) });
+        const userRes = await fetch(apiUrl(`api/user/${userId}`), { signal: AbortSignal.timeout(8000) });
         if (userRes.ok) {
           const userData = await userRes.json();
-          setDebugUserResp(userData); // TEMP DEBUG
           if (userData.subscribed) {
             setSubStatus("active");
           } else if (userData.trialExpired) {
@@ -222,37 +210,30 @@ export default function Home() {
             setSubStatus("trial");
             setTrialDaysLeft(userData.trialDaysLeft ?? 14);
           }
-        } else {
-          setDebugUserErr(`HTTP ${userRes.status}`); // TEMP DEBUG
         }
-      } catch (e: any) {
-        setDebugUserErr(`${e?.name ?? "Error"}: ${e?.message ?? "fetch failed"}`); // TEMP DEBUG
+      } catch {
         // Network/timeout — fail-open default ("trial", 14 days) already applied above
       }
 
       // ── Step 4: Stripe subscription override (Stripe subscribers) ───────────
       // Stripe is the authoritative source for paid subscribers. If the user has
       // an active Stripe subscription, override whatever the user store says.
-      const stripeUrl = apiUrl("api/stripe/subscription");
-      setDebugStripeUrl(stripeUrl); // TEMP DEBUG
       try {
         await fetch(apiUrl("api/stripe/user"), {
           method: "POST",
           headers: { "x-user-id": userId },
           signal: AbortSignal.timeout(8000),
         });
-        const stripeRes = await fetch(stripeUrl, {
+        const stripeRes = await fetch(apiUrl("api/stripe/subscription"), {
           headers: { "x-user-id": userId },
           signal: AbortSignal.timeout(8000),
         });
         const stripeData = await stripeRes.json();
-        setDebugStripeResp(stripeData); // TEMP DEBUG
         if (stripeData.status === "active" || stripeData.status === "trialing") {
           setSubStatus("active");
         }
         // Trial/expired from Stripe: already set by server user store above
-      } catch (e: any) {
-        setDebugStripeErr(`${e?.name ?? "Error"}: ${e?.message ?? "fetch failed"}`); // TEMP DEBUG
+      } catch {
         // Stripe unavailable — server user store status already applied
       }
     }
@@ -611,61 +592,6 @@ export default function Home() {
         savedCount={savedWines.length}
         onScanClick={handleScanAttempt}
       />
-
-      {/* TEMP DEBUG: trial-banner diagnostic overlay (Scan screen only).
-          Remove this entire block + the debug state vars + the setDebug*
-          calls in initUser when Issue 1 is resolved. */}
-      {activeTab === "home" && (() => {
-        const buildTime = (typeof __BUILD_TIME__ !== "undefined" ? __BUILD_TIME__ : "unknown");
-        const userJsonStr = debugUserResp ? JSON.stringify(debugUserResp) : (debugUserErr ? `ERR ${debugUserErr}` : "pending…");
-        const stripeJsonStr = debugStripeResp ? JSON.stringify(debugStripeResp) : (debugStripeErr ? `ERR ${debugStripeErr}` : "pending…");
-        const stripeOverrides = debugStripeResp?.status === "active" || debugStripeResp?.status === "trialing";
-        const bannerWillShow = subStatus === "trial" || subStatus === "expired";
-        const origin = typeof window !== "undefined" ? window.location.origin : "?";
-        const onLine = typeof navigator !== "undefined" ? navigator.onLine : "?";
-        const platform = (window as any).Capacitor?.getPlatform?.() ?? "?";
-        const lsPromo = (() => { try { return localStorage.getItem("uncorked_promo_access"); } catch { return "?"; } })();
-        const lsSubscribed = (() => { try { return localStorage.getItem("subscribed"); } catch { return "?"; } })();
-        const lsTrialStart = (() => { try { return localStorage.getItem("trialStart"); } catch { return "?"; } })();
-        const lsIosTrialStart = (() => { try { return localStorage.getItem("uncorked_trial_start"); } catch { return "?"; } })();
-        return (
-          <div style={{
-            position: "fixed", left: "50%", transform: "translateX(-50%)",
-            bottom: "calc(env(safe-area-inset-bottom, 0px) + 70px)",
-            width: "calc(100% - 16px)", maxWidth: "414px",
-            maxHeight: "260px", overflowY: "auto",
-            backgroundColor: "rgba(0,0,0,0.86)", color: "#fff",
-            fontFamily: "ui-monospace,SFMono-Regular,Menlo,Consolas,monospace",
-            fontSize: "9.5px", lineHeight: 1.35,
-            padding: "6px 8px", borderRadius: "6px",
-            zIndex: 1000, whiteSpace: "pre-wrap", wordBreak: "break-all",
-          }}>
-            <div style={{ color: "#c9a84c", fontWeight: 700 }}>DEBUG · build {buildTime}</div>
-            <div>platform: {platform} | onLine: {String(onLine)}</div>
-            <div>window.origin: {origin}</div>
-            <div>userId: {userId.slice(0, 18)}…</div>
-            <div style={{ color: lsPromo === "lifetime" ? "#FF7B7B" : "#fff" }}>
-              ls.promo_access: {lsPromo ?? "null"} {lsPromo === "lifetime" ? "← FORCES ACTIVE" : ""}
-            </div>
-            <div style={{ color: lsSubscribed === "true" ? "#FF7B7B" : "#fff" }}>
-              ls.subscribed: {lsSubscribed ?? "null"} {lsSubscribed === "true" ? "← FORCES ACTIVE" : ""}
-            </div>
-            <div>ls.trialStart: {lsTrialStart ?? "null"} | ls.uncorked_trial_start: {lsIosTrialStart ?? "null"}</div>
-            <div>userUrl: {debugUserUrl || "(not set yet)"}</div>
-            <div>stripeUrl: {debugStripeUrl || "(not set yet)"}</div>
-            <div style={{ color: debugUserErr ? "#FF7B7B" : "#fff" }}>/api/user: {userJsonStr.slice(0, 220)}</div>
-            <div style={{ color: debugStripeErr ? "#FF7B7B" : "#fff" }}>/api/stripe/sub: {stripeJsonStr.slice(0, 180)}</div>
-            <div>subStatus = "{subStatus}"</div>
-            <div>subStatus === "trial" → {String(subStatus === "trial")}</div>
-            <div>trialDaysLeft (state): {trialDaysLeft} | (server): {debugUserResp?.trialDaysLeft ?? "n/a"}</div>
-            <div>trialExpired (server): {String(debugUserResp?.trialExpired ?? "n/a")}</div>
-            <div>stripeOverrideToActive: {String(stripeOverrides)} {stripeOverrides ? "← SUPPRESSES" : ""}</div>
-            <div style={{ color: bannerWillShow ? "#7CFC8B" : "#FF7B7B", fontWeight: 700 }}>
-              banner renders: {String(bannerWillShow)}
-            </div>
-          </div>
-        );
-      })()}
 
       {/* Paywall modal overlay — PaywallScreen handles iOS vs web UI internally */}
       {showPaywallModal && (
