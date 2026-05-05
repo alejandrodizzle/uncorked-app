@@ -345,7 +345,21 @@ export default function ResultsScreen({ wines, savedWines, onSaveToggle, onHome,
                 cellarScore={cellarScores[i] ?? null}
                 cellarStatus={cellarStatus[i] ?? "loading"}
                 isSaved={isSaved(wines[i])}
-                onSaveToggle={() => onSaveToggle(wines[i])}
+                // Merge AI-enriched tastingNotes into the saved object. The
+                // scan endpoint frequently returns tastingNotes: null (GPT
+                // declines for unknown wines); the user sees rich tasting
+                // notes only because aiAnalyses[i].tastingNotes overlays them
+                // on the card. Without this merge, the saved wine landed in
+                // localStorage with tastingNotes: null and the saved-screen
+                // + wine-detail views had nothing to render.
+                // CANONICAL FIELD NAME: tastingNotes (camelCase). Used by
+                // Wine type, SavedWine, scan endpoint, ai/critic endpoint,
+                // results card, saved card, and wine-detail view. Never
+                // rename without updating all six call sites.
+                onSaveToggle={() => onSaveToggle({
+                  ...wines[i],
+                  tastingNotes: aiAnalyses[i]?.tastingNotes ?? wines[i].tastingNotes,
+                })}
                 onSelect={() => onWineSelect(wines[i])}
               />
             ))}
