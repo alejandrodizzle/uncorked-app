@@ -15,6 +15,25 @@ console.log("Is native platform:", (window as any).Capacitor?.isNativePlatform?.
 console.log("Platform:", (window as any).Capacitor?.getPlatform?.());
 console.log("RC plugin available:", !!(window as any).Capacitor?.Plugins?.Purchases);
 
+// ── Strip Replit deployment feedback widget at runtime ───────────────────────
+// The deploy server injects a <script src=".../feedback-widget/widget.global.js"
+// data-position="bottom-right"> into the served HTML. CSS in index.html hides
+// any element it creates, but we also drop the script tag itself so it never
+// fires. iOS doesn't see it (bundles dist/public), Android does (server.url).
+function stripReplitFeedbackWidget() {
+  document.querySelectorAll('script[src*="feedback-widget"], script[src*="replit-cdn.com"]')
+    .forEach(s => s.remove());
+  const sweep = () => {
+    document.querySelectorAll(
+      '[id*="replit-feedback"],[class*="replit-feedback"],[id*="feedback-widget"],[class*="feedback-widget"],iframe[src*="replit-cdn.com"]'
+    ).forEach(el => el.remove());
+  };
+  sweep();
+  // The widget can mount asynchronously after DOMContentLoaded; observe and re-sweep.
+  new MutationObserver(sweep).observe(document.documentElement, { childList: true, subtree: true });
+}
+stripReplitFeedbackWidget();
+
 // ── Status bar + splash (non-blocking, fire-and-forget) ──────────────────────
 async function initChrome() {
   if (typeof window === "undefined") return;
