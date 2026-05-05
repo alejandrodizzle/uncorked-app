@@ -32,6 +32,23 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <!-- Hide Replit deployment feedback widget (auto-injected on the deployed
+         build at <script src="…/feedback-widget/widget.global.js"
+         data-position="bottom-right">). Renders as a floating circular badge
+         on Android (Android loads the deployed URL via Capacitor server.url),
+         not on iOS (iOS bundles dist/public directly). Defensive selectors —
+         the widget's exact mounted element name isn't documented. -->
+    <style>
+      [id*="replit-feedback"], [class*="replit-feedback"],
+      [id*="feedback-widget"], [class*="feedback-widget"],
+      iframe[src*="replit-cdn.com"], iframe[src*="feedback-widget"],
+      div[data-replit-widget], div[data-deployment-id] {
+        display: none !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
