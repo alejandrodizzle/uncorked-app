@@ -84,7 +84,17 @@ export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [userId] = useState<string>(getOrCreateUserId);
-  const [subStatus, setSubStatus] = useState<"loading" | "trial" | "active" | "expired">("loading");
+  // ── subStatus default: "trial" (fail-open, optimistic) ──────────────────────
+  // NEVER default to "active". Defaulting to "active" silently suppresses the
+  // trial banner for every user on first paint — historical regression bug
+  // (commit 86f0b88) that re-surfaced on Android. The only legitimate paths
+  // to "active" are: (1) explicit server signal userData.subscribed === true,
+  // (2) Stripe status === "active"|"trialing", (3) RevenueCat entitlement,
+  // (4) promo lifetime, (5) post-checkout URL param. If every fetch hangs
+  // (cold start, offline, DNS fail), we want the banner visible — losing
+  // banner visibility is a P0 conversion bug; showing it for ~1s to a paid
+  // user is cosmetic.
+  const [subStatus, setSubStatus] = useState<"loading" | "trial" | "active" | "expired">("trial");
   const [trialDaysLeft, setTrialDaysLeft] = useState(14);
   // TEMP DEBUG: capture raw /api/user + /api/stripe/subscription responses
   // so the on-screen overlay can show what the server actually returned.
@@ -93,6 +103,8 @@ export default function Home() {
   const [debugStripeResp, setDebugStripeResp] = useState<any>(null);
   const [debugUserErr, setDebugUserErr] = useState<string | null>(null);
   const [debugStripeErr, setDebugStripeErr] = useState<string | null>(null);
+  const [debugUserUrl, setDebugUserUrl] = useState<string>("");
+  const [debugStripeUrl, setDebugStripeUrl] = useState<string>("");
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [showPaywallModal, setShowPaywallModal] = useState(false);
   const [showPaywallWithPromo, setShowPaywallWithPromo] = useState(false);
@@ -184,8 +196,13 @@ export default function Home() {
       // ── Step 3: server-side user store — authoritative trial / scan gate ─────
       // This registers the user in the server-side userStore so the /api/scan
       // endpoint can enforce the trial gate. Must be called before any scan.
+      // 8s timeout via AbortController — Replit autoscale cold starts can
+      // hang fetches for 10-30s otherwise, leaving the overlay stuck at
+      // "loading…" with no error visible.
+      const userUrl = apiUrl(`api/user/${userId}`);
+      setDebugUserUrl(userUrl); // TEMP DEBUG
       try {
-        const userRes = await fetch(apiUrl(`api/user/${userId}`));
+        const userRes = await fetch(userUrl, { signal: AbortSignal.timeout(8000) });
         if (userRes.ok) {
           const userData = await userRes.json();
           setDebugUserResp(userData); // TEMP DEBUG
@@ -202,20 +219,24 @@ export default function Home() {
           setDebugUserErr(`HTTP ${userRes.status}`); // TEMP DEBUG
         }
       } catch (e: any) {
-        setDebugUserErr(e?.message ?? "fetch failed"); // TEMP DEBUG
-        // Network unavailable — local calculation already displayed, leave it
+        setDebugUserErr(`${e?.name ?? "Error"}: ${e?.message ?? "fetch failed"}`); // TEMP DEBUG
+        // Network/timeout — fail-open default ("trial", 14 days) already applied above
       }
 
       // ── Step 4: Stripe subscription override (Stripe subscribers) ───────────
       // Stripe is the authoritative source for paid subscribers. If the user has
       // an active Stripe subscription, override whatever the user store says.
+      const stripeUrl = apiUrl("api/stripe/subscription");
+      setDebugStripeUrl(stripeUrl); // TEMP DEBUG
       try {
         await fetch(apiUrl("api/stripe/user"), {
           method: "POST",
           headers: { "x-user-id": userId },
+          signal: AbortSignal.timeout(8000),
         });
-        const stripeRes = await fetch(apiUrl("api/stripe/subscription"), {
+        const stripeRes = await fetch(stripeUrl, {
           headers: { "x-user-id": userId },
+          signal: AbortSignal.timeout(8000),
         });
         const stripeData = await stripeRes.json();
         setDebugStripeResp(stripeData); // TEMP DEBUG
@@ -224,7 +245,7 @@ export default function Home() {
         }
         // Trial/expired from Stripe: already set by server user store above
       } catch (e: any) {
-        setDebugStripeErr(e?.message ?? "fetch failed"); // TEMP DEBUG
+        setDebugStripeErr(`${e?.name ?? "Error"}: ${e?.message ?? "fetch failed"}`); // TEMP DEBUG
         // Stripe unavailable — server user store status already applied
       }
     }
@@ -589,32 +610,38 @@ export default function Home() {
           calls in initUser when Issue 1 is resolved. */}
       {activeTab === "home" && (() => {
         const buildTime = (typeof __BUILD_TIME__ !== "undefined" ? __BUILD_TIME__ : "unknown");
-        const userJsonStr = debugUserResp ? JSON.stringify(debugUserResp) : (debugUserErr ? `ERR: ${debugUserErr}` : "loading…");
-        const stripeJsonStr = debugStripeResp ? JSON.stringify(debugStripeResp) : (debugStripeErr ? `ERR: ${debugStripeErr}` : "loading…");
-        const trialDaysCalc = debugUserResp?.trialDaysLeft;
+        const userJsonStr = debugUserResp ? JSON.stringify(debugUserResp) : (debugUserErr ? `ERR ${debugUserErr}` : "pending…");
+        const stripeJsonStr = debugStripeResp ? JSON.stringify(debugStripeResp) : (debugStripeErr ? `ERR ${debugStripeErr}` : "pending…");
         const stripeOverrides = debugStripeResp?.status === "active" || debugStripeResp?.status === "trialing";
         const bannerWillShow = subStatus === "trial" || subStatus === "expired";
+        const origin = typeof window !== "undefined" ? window.location.origin : "?";
+        const onLine = typeof navigator !== "undefined" ? navigator.onLine : "?";
+        const platform = (window as any).Capacitor?.getPlatform?.() ?? "?";
         return (
           <div style={{
             position: "fixed", left: "50%", transform: "translateX(-50%)",
             bottom: "calc(env(safe-area-inset-bottom, 0px) + 70px)",
             width: "calc(100% - 16px)", maxWidth: "414px",
-            maxHeight: "180px", overflowY: "auto",
-            backgroundColor: "rgba(0,0,0,0.82)", color: "#fff",
+            maxHeight: "260px", overflowY: "auto",
+            backgroundColor: "rgba(0,0,0,0.86)", color: "#fff",
             fontFamily: "ui-monospace,SFMono-Regular,Menlo,Consolas,monospace",
             fontSize: "9.5px", lineHeight: 1.35,
             padding: "6px 8px", borderRadius: "6px",
             zIndex: 1000, whiteSpace: "pre-wrap", wordBreak: "break-all",
           }}>
             <div style={{ color: "#c9a84c", fontWeight: 700 }}>DEBUG · build {buildTime}</div>
+            <div>platform: {platform} | onLine: {String(onLine)}</div>
+            <div>window.origin: {origin}</div>
             <div>userId: {userId.slice(0, 18)}…</div>
-            <div>/api/user resp: {userJsonStr.slice(0, 220)}</div>
-            <div>/api/stripe/subscription: {stripeJsonStr.slice(0, 180)}</div>
+            <div>userUrl: {debugUserUrl || "(not set yet)"}</div>
+            <div>stripeUrl: {debugStripeUrl || "(not set yet)"}</div>
+            <div style={{ color: debugUserErr ? "#FF7B7B" : "#fff" }}>/api/user: {userJsonStr.slice(0, 220)}</div>
+            <div style={{ color: debugStripeErr ? "#FF7B7B" : "#fff" }}>/api/stripe/sub: {stripeJsonStr.slice(0, 180)}</div>
             <div>subStatus = "{subStatus}"</div>
             <div>subStatus === "trial" → {String(subStatus === "trial")}</div>
-            <div>trialDaysLeft (state): {trialDaysLeft} | (server): {trialDaysCalc ?? "n/a"}</div>
+            <div>trialDaysLeft (state): {trialDaysLeft} | (server): {debugUserResp?.trialDaysLeft ?? "n/a"}</div>
             <div>trialExpired (server): {String(debugUserResp?.trialExpired ?? "n/a")}</div>
-            <div>stripeOverrideToActive: {String(stripeOverrides)} {stripeOverrides ? "← SUPPRESSES BANNER" : ""}</div>
+            <div>stripeOverrideToActive: {String(stripeOverrides)} {stripeOverrides ? "← SUPPRESSES" : ""}</div>
             <div style={{ color: bannerWillShow ? "#7CFC8B" : "#FF7B7B", fontWeight: 700 }}>
               banner renders: {String(bannerWillShow)}
             </div>
