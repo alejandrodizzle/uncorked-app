@@ -10,6 +10,11 @@ const basePath = process.env.BASE_PATH ?? "/";
 
 export default defineConfig({
   base: basePath,
+  // TEMP DEBUG: bake build timestamp so the on-screen overlay can show which
+  // build is actually running on the device. Strip when removing debug overlay.
+  define: {
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+  },
   plugins: [
     react(),
     tailwindcss(),
