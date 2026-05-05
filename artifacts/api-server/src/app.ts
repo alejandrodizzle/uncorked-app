@@ -35,13 +35,22 @@ app.use((_req, res, next) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+// CORS allowlist: includes every origin a Capacitor WebView can produce.
+// - https://wine-scan-ai.replit.app — Android prod (server.url loads page from there)
+// - capacitor://localhost — iOS native bundled assets
+// - https://localhost — Android native bundled assets when androidScheme: 'https'
+// - http://localhost — older Android scheme + dev
+// - http://localhost:5173 — Vite dev
+// - null — file:// or sandboxed iframes occasionally produce "Origin: null"
 app.use(
   cors({
     origin: [
       "https://wine-scan-ai.replit.app",
       "capacitor://localhost",
+      "https://localhost",
       "http://localhost",
       "http://localhost:5173",
+      "null",
     ],
     methods: ["GET", "POST"],
     allowedHeaders: ["Content-Type", "Authorization", "x-user-id"],
