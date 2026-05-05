@@ -167,14 +167,21 @@ export default function Home() {
       // ── [STRIPE PAYWALL — web only, starts here] ────────────────────────────
 
       // ── Step 1: promo code — instant UI, then register server-side ─────────
-      if (localStorage.getItem("uncorked_promo_access") === "lifetime") {
+      // NOTE: we used to `return` here, which skipped the entire /api/user
+      // fetch path. That hid a real bug on Android: stale `uncorked_promo_access`
+      // localStorage (from prior testing, not cleared by Cap "clear data" in
+      // some device configs) silently activated users with zero diagnostic
+      // visibility — overlay showed "userUrl: (not set yet)" because we
+      // never reached setDebugUserUrl. Now we set state and FALL THROUGH so
+      // the fetches fire, errors surface, and the overlay always tells us
+      // what the server actually thinks about this user. The /api/user fetch
+      // is platform-agnostic, idempotent, and cheap — there's no reason to
+      // ever skip it. Server response will not flip "active" back to "trial"
+      // for promo users (lifetime promo is enforced server-side anyway).
+      const hasPromoLifetime = localStorage.getItem("uncorked_promo_access") === "lifetime";
+      if (hasPromoLifetime) {
         setSubStatus("active");
-        // Fire-and-forget: register user in server userStore so scan endpoint
-        // knows this userId exists. The scan endpoint will fall back to Stripe
-        // DB (access_type='lifetime') if userStore marks them trial-expired.
-        fetch(apiUrl(`api/user/${userId}`)).catch(() => {});
-        fetch(apiUrl("api/stripe/user"), { method: "POST", headers: { "x-user-id": userId } }).catch(() => {});
-        return;
+        // continue to fetches below — do NOT return
       }
 
       // ── Step 2: fast local render — show something before first await ────────
@@ -617,6 +624,10 @@ export default function Home() {
         const origin = typeof window !== "undefined" ? window.location.origin : "?";
         const onLine = typeof navigator !== "undefined" ? navigator.onLine : "?";
         const platform = (window as any).Capacitor?.getPlatform?.() ?? "?";
+        const lsPromo = (() => { try { return localStorage.getItem("uncorked_promo_access"); } catch { return "?"; } })();
+        const lsSubscribed = (() => { try { return localStorage.getItem("subscribed"); } catch { return "?"; } })();
+        const lsTrialStart = (() => { try { return localStorage.getItem("trialStart"); } catch { return "?"; } })();
+        const lsIosTrialStart = (() => { try { return localStorage.getItem("uncorked_trial_start"); } catch { return "?"; } })();
         return (
           <div style={{
             position: "fixed", left: "50%", transform: "translateX(-50%)",
@@ -633,6 +644,13 @@ export default function Home() {
             <div>platform: {platform} | onLine: {String(onLine)}</div>
             <div>window.origin: {origin}</div>
             <div>userId: {userId.slice(0, 18)}…</div>
+            <div style={{ color: lsPromo === "lifetime" ? "#FF7B7B" : "#fff" }}>
+              ls.promo_access: {lsPromo ?? "null"} {lsPromo === "lifetime" ? "← FORCES ACTIVE" : ""}
+            </div>
+            <div style={{ color: lsSubscribed === "true" ? "#FF7B7B" : "#fff" }}>
+              ls.subscribed: {lsSubscribed ?? "null"} {lsSubscribed === "true" ? "← FORCES ACTIVE" : ""}
+            </div>
+            <div>ls.trialStart: {lsTrialStart ?? "null"} | ls.uncorked_trial_start: {lsIosTrialStart ?? "null"}</div>
             <div>userUrl: {debugUserUrl || "(not set yet)"}</div>
             <div>stripeUrl: {debugStripeUrl || "(not set yet)"}</div>
             <div style={{ color: debugUserErr ? "#FF7B7B" : "#fff" }}>/api/user: {userJsonStr.slice(0, 220)}</div>
