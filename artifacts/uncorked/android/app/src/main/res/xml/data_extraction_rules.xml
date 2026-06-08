@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Data extraction rules (Android 12+ — android:dataExtractionRules).
+
+  Same intent as backup_rules.xml but for the newer API that splits backup into
+  two scopes: <cloud-backup> (Google Drive Auto Backup) and <device-transfer>
+  (phone-to-phone migration). We exclude WebView storage from BOTH so a stale
+  localStorage key (e.g. uncorked_promo_access="lifetime") can never survive a
+  reinstall or a device migration and silently force subStatus="active".
+  Authoritative trial/subscription state is server-side, so nothing is lost.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" path="app_webview/" />
+        <exclude domain="root" path="databases/" />
+        <exclude domain="root" path="app_textures/" />
+        <exclude domain="root" path="cache/" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" path="app_webview/" />
+        <exclude domain="root" path="databases/" />
+        <exclude domain="root" path="app_textures/" />
+        <exclude domain="root" path="cache/" />
+    </device-transfer>
+</data-extraction-rules>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android Auto Backup rules (Android 11 and below — android:fullBackupContent).
+
+  WHY: Capacitor stores all WebView state (localStorage, IndexedDB) under the
+  app data root. Android Auto Backup silently mirrors app data to the user's
+  Google Drive and RESTORES it on reinstall — so a stale key like
+  uncorked_promo_access="lifetime" survives a full uninstall+reinstall and
+  permanently forces subStatus="active", breaking the trial banner. Excluding
+  the WebView storage dirs guarantees a clean slate on reinstall. Authoritative
+  subscription/trial state lives on the server, so nothing of value is lost.
+-->
+<full-backup-content>
+    <!-- Capacitor 7 WebView Local Storage + IndexedDB (app_webview/Default/...) -->
+    <exclude domain="root" path="app_webview/" />
+    <!-- Legacy WebView databases (WebSQL / webview.db) -->
+    <exclude domain="root" path="databases/" />
+    <!-- Standard hygiene: GPU/texture cache + general cache -->
+    <exclude domain="root" path="app_textures/" />
+    <exclude domain="root" path="cache/" />
+</full-backup-content>
