@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { TRIAL_DAYS } from "../config";
 import LoadingScreen from "./loading";
 import ResultsScreen from "./results";
 import SavedScreen from "./saved-screen";
@@ -95,7 +96,7 @@ export default function Home() {
   // banner visibility is a P0 conversion bug; showing it for ~1s to a paid
   // user is cosmetic.
   const [subStatus, setSubStatus] = useState<"loading" | "trial" | "active" | "expired">("trial");
-  const [trialDaysLeft, setTrialDaysLeft] = useState(14);
+  const [trialDaysLeft, setTrialDaysLeft] = useState(TRIAL_DAYS);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [showPaywallModal, setShowPaywallModal] = useState(false);
   const [showPaywallWithPromo, setShowPaywallWithPromo] = useState(false);
@@ -141,12 +142,12 @@ export default function Home() {
         const trialStart = localStorage.getItem("uncorked_trial_start");
         if (!trialStart) {
           localStorage.setItem("uncorked_trial_start", Date.now().toString());
-          setTrialDaysLeft(14);
+          setTrialDaysLeft(TRIAL_DAYS);
           setSubStatus("trial");
           return;
         }
         const elapsed = (Date.now() - parseInt(trialStart)) / (1000 * 60 * 60 * 24);
-        const daysLeft = Math.max(0, Math.ceil(14 - elapsed));
+        const daysLeft = Math.max(0, Math.ceil(TRIAL_DAYS - elapsed));
         if (daysLeft > 0) {
           setTrialDaysLeft(daysLeft);
           setSubStatus("trial");
@@ -182,10 +183,10 @@ export default function Home() {
       if (localSubscribed) {
         setSubStatus("active");
       } else {
-        let localDaysLeft = 14;
+        let localDaysLeft = TRIAL_DAYS;
         if (localTrialStart) {
           const daysElapsed = Math.floor((Date.now() - parseInt(localTrialStart)) / (1000 * 60 * 60 * 24));
-          localDaysLeft = Math.max(0, 14 - daysElapsed);
+          localDaysLeft = Math.max(0, TRIAL_DAYS - daysElapsed);
         }
         setSubStatus(localDaysLeft > 0 ? "trial" : "expired");
         setTrialDaysLeft(localDaysLeft);
@@ -208,11 +209,11 @@ export default function Home() {
             setTrialDaysLeft(0);
           } else {
             setSubStatus("trial");
-            setTrialDaysLeft(userData.trialDaysLeft ?? 14);
+            setTrialDaysLeft(userData.trialDaysLeft ?? TRIAL_DAYS);
           }
         }
       } catch {
-        // Network/timeout — fail-open default ("trial", 14 days) already applied above
+        // Network/timeout — fail-open default ("trial", TRIAL_DAYS) already applied above
       }
 
       // ── Step 4: Stripe subscription override (Stripe subscribers) ───────────

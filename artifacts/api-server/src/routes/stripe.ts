@@ -1,6 +1,7 @@
 import { Router, type IRouter } from 'express';
 import { storage } from '../storage';
 import { stripeService } from '../stripeService';
+import { TRIAL_DAYS } from '../config';
 
 const router: IRouter = Router();
 
@@ -13,10 +14,10 @@ function getBaseUrl(req: any): string {
 router.get('/stripe/subscription', async (req: any, res) => {
   try {
     const userId = req.headers['x-user-id'] as string;
-    if (!userId) return res.json({ status: 'trial', trialDaysLeft: 14 });
+    if (!userId) return res.json({ status: 'trial', trialDaysLeft: TRIAL_DAYS });
 
     const user = await storage.getUser(userId);
-    if (!user) return res.json({ status: 'trial', trialDaysLeft: 14 });
+    if (!user) return res.json({ status: 'trial', trialDaysLeft: TRIAL_DAYS });
 
     // Promo code grants lifetime access
     if (user.access_type === 'lifetime') {
@@ -38,7 +39,7 @@ router.get('/stripe/subscription', async (req: any, res) => {
     // Fall back to trial countdown
     const createdAt = new Date(user.created_at);
     const daysSinceCreation = (Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
-    const trialDaysLeft = Math.max(0, Math.ceil(14 - daysSinceCreation));
+    const trialDaysLeft = Math.max(0, Math.ceil(TRIAL_DAYS - daysSinceCreation));
 
     return res.json({
       status: trialDaysLeft > 0 ? 'trial' : 'expired',
@@ -46,7 +47,7 @@ router.get('/stripe/subscription', async (req: any, res) => {
     });
   } catch (err: any) {
     console.error('Subscription check error:', err);
-    res.json({ status: 'trial', trialDaysLeft: 14 });
+    res.json({ status: 'trial', trialDaysLeft: TRIAL_DAYS });
   }
 });
 

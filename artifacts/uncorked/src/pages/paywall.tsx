@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { apiUrl } from "../lib/api";
+import { TRIAL_DAYS } from "../config";
 import { Browser } from "@capacitor/browser";
 // v9 requires the named import — accessing window.Capacitor.Plugins.Purchases
 // directly returns a stub proxy whose calls always throw "must be configured".
@@ -618,7 +619,7 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
             }}>
               {isExpired
                 ? "Subscribe now to restore access"
-                : "14-day free trial included · Cancel anytime"
+                : `${TRIAL_DAYS}-day free trial included · Cancel anytime`
               }
             </p>
 
@@ -845,7 +846,7 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
             }}>
               {isExpired
                 ? "Subscribe now to restore access"
-                : "14-day free trial included · Cancel anytime"
+                : `${TRIAL_DAYS}-day free trial included · Cancel anytime`
               }
             </p>
 

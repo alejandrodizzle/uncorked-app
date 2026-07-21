@@ -1,5 +1,6 @@
 import { storage } from './storage';
 import { getUncachableStripeClient } from './stripeClient';
+import { TRIAL_DAYS } from './config';
 
 export class StripeService {
   async createCustomer(email: string, userId: string) {
@@ -15,7 +16,7 @@ export class StripeService {
     priceId: string,
     successUrl: string,
     cancelUrl: string,
-    trialDays = 14
+    trialDays = TRIAL_DAYS
   ) {
     const stripe = await getUncachableStripeClient();
     return await stripe.checkout.sessions.create({

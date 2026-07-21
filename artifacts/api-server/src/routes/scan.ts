@@ -3,6 +3,7 @@ import multer from "multer";
 import OpenAI from "openai";
 import { userStore } from "./users";
 import { storage } from "../storage";
+import { TRIAL_DAYS } from "../config";
 
 const router: IRouter = Router();
 
@@ -26,7 +27,6 @@ const SYSTEM_PROMPT =
 
 const ALLOWED_MIME_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/heic"];
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
-const TRIAL_DAYS = 14;
 
 router.post(
   "/scan",

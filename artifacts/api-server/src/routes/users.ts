@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { TRIAL_DAYS } from "../config";
 
 const router: IRouter = Router();
 
@@ -6,8 +7,6 @@ const router: IRouter = Router();
 // NOTE: This resets on server restart. Persist to DB (see storage.ts) when ready.
 // Key: userId, Value: { trialStart, subscribed, scanCount }
 export const userStore = new Map<string, { trialStart: number; subscribed: boolean; scanCount: number }>();
-
-const TRIAL_DAYS = 14;
 
 function computeTrialStatus(user: { trialStart: number; subscribed: boolean; scanCount: number }) {
   const trialElapsed = (Date.now() - user.trialStart) / (1000 * 60 * 60 * 24);
@@ -113,8 +112,8 @@ router.get("/_debug/users", (_req, res): void => {
   res.json({ count: entries.length, serverNow: now, serverNowISO: new Date(now).toISOString(), users: entries });
 });
 
-// ── TEMP DEBUG: reset a user's trial to a fresh 14 days ──────────────────────
-// Sets trialStart = now (so trialDaysLeft = 14, trialExpired = false) and
+// ── TEMP DEBUG: reset a user's trial to a fresh TRIAL_DAYS days ──────────────
+// Sets trialStart = now (so trialDaysLeft = TRIAL_DAYS, trialExpired = false) and
 // clears `subscribed` so the trial banner is not overridden. Preserves the
 // userId (it's the map key) and scanCount. Saved wines live in client-side
 // localStorage and are therefore untouched by definition.
