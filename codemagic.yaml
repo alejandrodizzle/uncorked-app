@@ -76,10 +76,24 @@ workflows:
         script: |
           cd artifacts/uncorked
           npx vite build
+      - name: Clean CocoaPods state
+        script: |
+          # Force a clean pod install so the RevenueCat v11 native binary is
+          # actually installed (cached Pods previously kept the old v9 binary,
+          # causing "Purchases must be configured" errors on iOS).
+          cd artifacts/uncorked
+          rm -rf ios/App/Pods ios/App/Podfile.lock
       - name: Capacitor sync
         script: |
           cd artifacts/uncorked
           npx cap sync ios
+      - name: RevenueCat version diagnostic (pre-install)
+        script: |
+          cd artifacts/uncorked
+          echo "== JS package version =="
+          node -p "require('@revenuecat/purchases-capacitor/package.json').version"
+          echo "== Podfile.lock (should NOT exist after clean) =="
+          ls -la ios/App/Podfile.lock 2>/dev/null || echo "Podfile.lock absent - clean state confirmed"
       - name: Set build number
         script: |
           cd artifacts/uncorked/ios/App
@@ -88,7 +102,14 @@ workflows:
           echo "Build number set to: $BUILD_NUM"
       - name: Install pods
         script: |
-          cd artifacts/uncorked/ios/App && pod install
+          cd artifacts/uncorked/ios/App && pod install --repo-update
+      - name: RevenueCat version diagnostic (post-install)
+        script: |
+          # Verify the v11.x native binary resolved. Expected:
+          #   PurchasesCapacitor ~= 11.x, PurchasesHybridCommon ~= 17.x
+          cd artifacts/uncorked/ios/App
+          echo "== Resolved pod versions from Podfile.lock =="
+          grep -E "PurchasesCapacitor|PurchasesHybridCommon|RevenueCat" Podfile.lock | head -20
       - name: Build iOS
         script: |
           xcode-project build-ipa \
