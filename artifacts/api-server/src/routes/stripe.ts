@@ -139,7 +139,7 @@ router.post('/stripe/checkout', async (req: any, res) => {
       priceId,
       `${base}/uncorked/?payment=success`,
       `${base}/uncorked/?payment=cancelled`,
-      7
+      TRIAL_DAYS
     );
 
     res.json({ url: session.url });
