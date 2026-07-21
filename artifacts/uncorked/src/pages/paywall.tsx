@@ -27,6 +27,63 @@ const openLink = async (url: string) => {
   }
 };
 
+// TEMP DEBUG ─ RC on-screen diagnostics (iOS only) ────────────────────────────
+// Remove this whole block (and everything tagged TEMP DEBUG) after the
+// "Purchases must be configured" issue is verified fixed on TestFlight.
+declare const __BUILD_TIME__: string | undefined;
+const RC_BUILD_TIME: string = // TEMP DEBUG
+  typeof __BUILD_TIME__ !== "undefined" && __BUILD_TIME__
+    ? __BUILD_TIME__
+    : `moduleLoad:${new Date().toISOString()}`;
+
+// TEMP DEBUG — shared mutable debug state, readable by the overlay.
+const rcDbg: {
+  lastWaitTrigger: string;
+  events: string[];
+  notify: (() => void) | null;
+} = { lastWaitTrigger: "(none yet)", events: [], notify: null };
+
+// TEMP DEBUG — console + overlay logger
+function rcLog(label: string, data?: unknown) {
+  const ts = new Date().toISOString().slice(11, 23);
+  let dataStr = "";
+  try { dataStr = data === undefined ? "" : typeof data === "string" ? data : JSON.stringify(data); } catch { dataStr = String(data); }
+  console.log(`[RC-DEBUG] ${label}`, data ?? "");
+  rcDbg.events.push(`${ts} ${label}${dataStr ? " " + dataStr.slice(0, 220) : ""}`);
+  if (rcDbg.events.length > 12) rcDbg.events.shift();
+  rcDbg.notify?.();
+}
+
+// TEMP DEBUG — record why "Please wait a moment" fired
+function rcWaitTrigger(reason: string) {
+  rcDbg.lastWaitTrigger = `${new Date().toISOString().slice(11, 19)} ${reason}`;
+  rcLog("WAIT-TRIGGER", reason);
+}
+
+// TEMP DEBUG — brief error: message + first 3 stack lines
+function rcErrBrief(e: any): string {
+  const msg = e?.message ?? String(e);
+  const stack = (e?.stack || "").split("\n").slice(0, 3).join(" | ");
+  return stack ? `${msg} :: ${stack}` : msg;
+}
+
+// TEMP DEBUG — 10s timeout wrapper so silent native hangs surface as errors.
+// RC plugin calls don't accept an AbortSignal, so AbortSignal.timeout(10000)
+// drives a Promise.race rejection instead (the native call itself is not
+// cancelled, but the JS layer stops waiting and reports a timeout).
+function rcTimeout<T>(p: Promise<T>, label: string, ms = 10000): Promise<T> {
+  const signal = AbortSignal.timeout(ms);
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) =>
+      signal.addEventListener("abort", () =>
+        reject(new Error(`${label} timed out after ${ms}ms (silent native hang?)`))
+      )
+    ),
+  ]);
+}
+// TEMP DEBUG ─ end helpers ────────────────────────────────────────────────────
+
 // ─── RevenueCat readiness helpers ────────────────────────────────────────────
 // Native iOS SDK initializes asynchronously; even after Purchases.configure()
 // resolves in JS, the native layer may not be ready yet. These helpers gate all
@@ -43,22 +100,28 @@ const isRCNotConfiguredError = (msg: string) =>
 // Uses the imported Purchases namespace, NOT window.Capacitor.Plugins.Purchases
 // (the latter is a stub that always throws "must be configured" in v9).
 const waitForRevenueCat = async (maxAttempts = 30): Promise<boolean> => {
+  let lastErr = ""; // TEMP DEBUG
   for (let i = 0; i < maxAttempts; i++) {
     try {
-      await Purchases.getCustomerInfo();
+      // TEMP DEBUG — 10s timeout so a silent native hang shows up as an error
+      await rcTimeout(Purchases.getCustomerInfo(), `waitForRC.getCustomerInfo(attempt ${i + 1})`);
       (window as any).__rcConfigured = true;
+      rcLog("waitForRC OK", `attempt ${i + 1}`); // TEMP DEBUG
       return true;
     } catch (e: any) {
       const m: string = e?.message ?? "";
+      lastErr = rcErrBrief(e); // TEMP DEBUG
       if (m.includes("configured") || m.includes("Purchases must be")) {
         await new Promise(r => setTimeout(r, 1000));
         continue;
       }
       // Any other error = RC IS configured (e.g. network)
       (window as any).__rcConfigured = true;
+      rcLog("waitForRC OK-via-other-error", lastErr); // TEMP DEBUG
       return true;
     }
   }
+  rcWaitTrigger(`waitForRevenueCat exhausted ${maxAttempts} attempts; lastErr: ${lastErr}`); // TEMP DEBUG
   return false;
 };
 
@@ -86,13 +149,21 @@ const PLANS = {
 async function restoreStoreKitPurchases(): Promise<{ success: boolean; error?: string }> {
   try {
     const ready = await waitForRevenueCat();
-    if (!ready) return { success: false, error: "Please wait a moment and try again." };
+    if (!ready) {
+      rcWaitTrigger("restore: waitForRevenueCat returned false"); // TEMP DEBUG
+      return { success: false, error: "Please wait a moment and try again." };
+    }
 
+    // No rcTimeout here on purpose: restore opens an interactive Apple ID
+    // sheet that can legitimately take >10s. // TEMP DEBUG
     const result = await Purchases.restorePurchases();
+    rcLog("restorePurchases result", { active: Object.keys(result?.customerInfo?.entitlements?.active ?? {}) }); // TEMP DEBUG
     const hasActive = result?.customerInfo?.entitlements?.active?.["Uncorked Pro"];
     return { success: !!hasActive, error: hasActive ? undefined : "No active subscription found." };
   } catch (err: any) {
     const msg: string = err?.message ?? "";
+    rcLog("restorePurchases ERROR", rcErrBrief(err)); // TEMP DEBUG
+    if (isRCNotConfiguredError(msg)) rcWaitTrigger(`restore: not-configured error: ${msg}`); // TEMP DEBUG
     return { success: false, error: isRCNotConfiguredError(msg) ? "Please wait a moment and try again." : msg || "Restore failed. Please try again." };
   }
 }
@@ -145,6 +216,47 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
     })();
     return () => { cancelled = true; };
   }, [nativeIOS]);
+
+  // TEMP DEBUG ─ on-screen RC diagnostics state ───────────────────────────────
+  const [, setDbgTick] = useState(0); // re-render when rcDbg mutates
+  const [dbgProbe, setDbgProbe] = useState<{ customerInfo: string; offerings: string }>({
+    customerInfo: "probing…",
+    offerings: "probing…",
+  });
+  useEffect(() => {
+    if (!nativeIOS) return;
+    rcDbg.notify = () => setDbgTick(t => t + 1);
+    let cancelled = false;
+    (async () => {
+      // Probe getCustomerInfo
+      try {
+        const ci = await rcTimeout(Purchases.getCustomerInfo(), "dbg.getCustomerInfo");
+        const active = Object.keys(ci?.customerInfo?.entitlements?.active ?? (ci as any)?.entitlements?.active ?? {});
+        const summary = `OK active=[${active.join(",")}]`;
+        rcLog("dbg.getCustomerInfo", summary);
+        if (!cancelled) setDbgProbe(p => ({ ...p, customerInfo: summary }));
+      } catch (e: any) {
+        const brief = `ERR ${rcErrBrief(e)}`;
+        rcLog("dbg.getCustomerInfo", brief);
+        if (!cancelled) setDbgProbe(p => ({ ...p, customerInfo: brief }));
+      }
+      // Probe getOfferings
+      try {
+        const off = await rcTimeout(Purchases.getOfferings(), "dbg.getOfferings");
+        const offeringCount = Object.keys(off?.all ?? {}).length;
+        const pkgCount = off?.current?.availablePackages?.length ?? 0;
+        const summary = `OK offerings=${offeringCount} currentPkgs=${pkgCount}`;
+        rcLog("dbg.getOfferings", summary);
+        if (!cancelled) setDbgProbe(p => ({ ...p, offerings: summary }));
+      } catch (e: any) {
+        const brief = `ERR ${rcErrBrief(e)}`;
+        rcLog("dbg.getOfferings", brief);
+        if (!cancelled) setDbgProbe(p => ({ ...p, offerings: brief }));
+      }
+    })();
+    return () => { cancelled = true; rcDbg.notify = null; };
+  }, [nativeIOS]);
+  // TEMP DEBUG ─ end diagnostics state ────────────────────────────────────────
 
   // ── Promo code handler ───────────────────────────────────────────────────────
   async function handleRedeemPromo() {
@@ -225,15 +337,18 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
       // getCustomerInfo() to confirm the native SDK is actually answering.
       let configured = false;
       let lastProbeError = "";
+      rcLog("purchase tapped", { plan: selectedPlan, productId }); // TEMP DEBUG
       for (let i = 0; i < 30; i++) {
         try {
-          await Purchases.getCustomerInfo();
+          // TEMP DEBUG — 10s timeout so a silent native hang surfaces
+          await rcTimeout(Purchases.getCustomerInfo(), `purchase.probe getCustomerInfo(attempt ${i + 1})`);
           (window as any).__rcConfigured = true;
           configured = true;
+          rcLog("purchase probe OK", `attempt ${i + 1}`); // TEMP DEBUG
           break;
         } catch (e: any) {
           const m: string = e?.message ?? "";
-          lastProbeError = m;
+          lastProbeError = rcErrBrief(e); // TEMP DEBUG — full brief incl. stack
           if (m.includes("configured") || m.includes("Purchases must be")) {
             await new Promise(r => setTimeout(r, 1000));
             continue;
@@ -241,6 +356,7 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
           // Any other error means the SDK IS configured (e.g. network error)
           (window as any).__rcConfigured = true;
           configured = true;
+          rcLog("purchase probe OK-via-other-error", lastProbeError); // TEMP DEBUG
           break;
         }
       }
@@ -248,14 +364,17 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
       if (!configured) {
         // DEBUG MODE — surface the actual probe error so we can see what's
         // failing on real devices. Revert to friendly copy after diagnosis.
+        rcWaitTrigger(`purchase: probe never succeeded in 30 attempts; lastErr: ${lastProbeError}`); // TEMP DEBUG
         setError(`RC probe timeout: ${lastProbeError || "Unknown error"}`);
         return;
       }
 
       // ── Path A — offerings ───────────────────────────────────────────────────
       try {
-        const offeringsResult = await Purchases.getOfferings();
+        // TEMP DEBUG — 10s timeout on offerings fetch
+        const offeringsResult = await rcTimeout(Purchases.getOfferings(), "purchase.getOfferings");
         const packages = offeringsResult?.current?.availablePackages || [];
+        rcLog("getOfferings OK", { offerings: Object.keys(offeringsResult?.all ?? {}).length, currentPkgs: packages.length }); // TEMP DEBUG
         console.log("Available packages:", packages.map((p: any) => p.product?.productIdentifier));
 
         const pkg = packages.find((p: any) => p.product?.productIdentifier === productId);
@@ -270,6 +389,7 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
           }
         }
       } catch (offeringsErr: any) {
+        rcLog("Path A (offerings) FAILED", rcErrBrief(offeringsErr)); // TEMP DEBUG
         console.log("Offerings path failed:", offeringsErr?.message);
         // fall through to Path B
       }
@@ -277,8 +397,10 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
       // ── Path B — getProducts → purchaseStoreProduct with full StoreProduct ──
       try {
         console.log("Trying getProducts for:", productId);
-        const productsResult = await Purchases.getProducts({ productIdentifiers: [productId] });
+        // TEMP DEBUG — 10s timeout on products fetch
+        const productsResult = await rcTimeout(Purchases.getProducts({ productIdentifiers: [productId] }), "purchase.getProducts");
         const products: any[] = productsResult?.products || [];
+        rcLog("getProducts OK", { count: products.length }); // TEMP DEBUG
         console.log("Products found:", products.length);
 
         if (products.length > 0) {
@@ -291,6 +413,7 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
           }
         }
       } catch (productsErr: any) {
+        rcLog("Path B (getProducts) FAILED", rcErrBrief(productsErr)); // TEMP DEBUG
         console.log("getProducts path failed:", productsErr?.message);
         // fall through to Path C
       }
@@ -302,9 +425,11 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
         localStorage.setItem("subscribed", "true");
         onSubscribed();
       } catch (lastErr: any) {
+        rcLog("Path C (bare id) FAILED", rcErrBrief(lastErr)); // TEMP DEBUG
         throw lastErr;
       }
     } catch (err: any) {
+      rcLog("purchase FINAL ERROR", rcErrBrief(err)); // TEMP DEBUG
       console.error("Purchase failed:", err);
       const msg: string = err?.message || "";
       const code = err?.code != null ? String(err.code) : "";
@@ -623,15 +748,27 @@ export default function PaywallScreen({ userId, trialDaysLeft, onSubscribed, onD
               }
             </p>
 
-            {/* DEBUG diagnostic strip — visible on iOS while diagnosing the
-                "must be configured" issue. Remove after RC is verified working. */}
+            {/* TEMP DEBUG — full RC diagnostic overlay, iOS only. Fixed to the
+                bottom of the screen. Remove after RC is verified working. */}
             <div style={{
-              fontSize: "10px", color: "#888", padding: "4px 8px",
-              background: "#f5f5f5", borderRadius: "4px",
-              margin: "4px 0", fontFamily: "monospace",
-              width: "100%", textAlign: "center",
+              position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9999,
+              background: "rgba(0,0,0,0.78)", color: "#fff",
+              fontFamily: "monospace", fontSize: "10px", lineHeight: 1.5,
+              padding: "6px 10px calc(6px + env(safe-area-inset-bottom))",
+              maxHeight: "45vh", overflowY: "auto",
+              whiteSpace: "pre-wrap", wordBreak: "break-all",
+              pointerEvents: "none",
             }}>
-              rc:{String(!!(window as any).Capacitor?.Plugins?.Purchases)} | ready:{String(!!(window as any).__rcConfigured)} | wait:{String(isWaitingForRC)}
+              {`[RC-DEBUG]
+build: ${RC_BUILD_TIME}
+platform: ${(window as any).Capacitor?.getPlatform?.() ?? "unknown"}
+bridge Plugins.Purchases: ${String(!!(window as any).Capacitor?.Plugins?.Purchases)}
+__rcConfigured: ${String(!!(window as any).__rcConfigured)} | isWaitingForRC: ${String(isWaitingForRC)}
+getCustomerInfo: ${dbgProbe.customerInfo}
+getOfferings: ${dbgProbe.offerings}
+last "Please wait" trigger: ${rcDbg.lastWaitTrigger}
+── recent events ──
+${rcDbg.events.slice(-8).join("\n") || "(none)"}`}
             </div>
 
             {error && (
