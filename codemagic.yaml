@@ -17,6 +17,10 @@ workflows:
           cd artifacts/uncorked
           npm install --legacy-peer-deps
           mkdir -p android/app/src/main/assets
+      - name: RevenueCat version check
+        script: |
+          cd artifacts/uncorked
+          node -e "console.log(require('@revenuecat/purchases-capacitor/package.json').version)"
       - name: Build web app
         script: |
           cd artifacts/uncorked
